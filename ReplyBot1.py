@@ -1,7 +1,6 @@
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.client import DefaultBotProperties
 import os
 import sqlite3
 import logging
@@ -24,8 +23,7 @@ ADMIN_ID = 123456789  # ID администратора
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота
-bot_properties = DefaultBotProperties(parse_mode=ParseMode.HTML)  # Устанавливаем по умолчанию HTML
-bot = Bot(token=TOKEN, default=bot_properties)
+bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)  # Устанавливаем режим HTML для сообщений
 dp = Dispatcher(bot)
 
 # База данных для хранения хешей сообщений
