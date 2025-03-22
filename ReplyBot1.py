@@ -22,8 +22,14 @@ ADMIN_ID = 123456789  # ID администратора
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Инициализация бота
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)  # Устанавливаем режим HTML для сообщений
+# Инициализация бота с конфигурацией
+from aiogram.client.bot import Bot
+from aiogram.client.session import ClientSession
+from aiogram.client.default import DefaultBotProperties
+
+# Устанавливаем настройки для бота
+properties = DefaultBotProperties(parse_mode=ParseMode.HTML)
+bot = Bot(token=TOKEN, session=ClientSession(), default=properties)
 dp = Dispatcher(bot)
 
 # База данных для хранения хешей сообщений
