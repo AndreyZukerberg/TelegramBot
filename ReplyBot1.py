@@ -10,7 +10,7 @@ import aiohttp
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
-from aiogram import Client
+from aiogram import ClientSession
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
@@ -23,64 +23,16 @@ ADMIN_ID = 123456789  # ID администратора
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Создание объекта DefaultBotProperties для конфигурации
-properties = Client(token=TOKEN)
-
-# Фильтр рекламы
-AD_WORDS = ["реклама", "подпишись", "скидка", "акция", "купить", "магазин", "партнерство"]
-
-def is_advertisement(text):
-    """Проверка, является ли текст рекламным."""
-    text = text.lower()
-    return any(word in text for word in AD_WORDS)
-
-def get_text_hash(text):
-    """Получение хеша текста."""
-    return str(imagehash.phash(Image.fromarray(np.array(bytearray(text.encode()), dtype=np.uint8).reshape(1, -1))))
-
-def get_image_hash(image_path):
-    """Получение хеша изображения."""
-    image = Image.open(image_path).convert("L").resize((8, 8))
-    return str(imagehash.phash(image))
-
-def get_video_hash(video_path):
-    """Получение хеша первого кадра видео."""
-    cap = cv2.VideoCapture(video_path)
-    success, frame = cap.read()
-    cap.release()
-    if success:
-        image = Image.fromarray(frame).convert("L").resize((8, 8))
-        return str(imagehash.phash(image))
-    return None
-
-def remove_watermark(image_path):
-    """Простое удаление вотермарок."""
-    image = cv2.imread(image_path)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, mask = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY)
-    image[mask == 255] = (255, 255, 255)
-    output_path = image_path.replace(".jpg", "_clean.jpg")
-    cv2.imwrite(output_path, image)
-    return output_path
-
-def clean_text(text):
-    """Удаление рекламных фраз и добавление ссылки."""
-    to_remove = ["💬Написать нам", "Подписаться на канал✅", "Подписаться | Предложить новость"]
-    for phrase in to_remove:
-        text = text.replace(phrase, "")
-    text += f"\n\n🔗 <a href='https://t.me/ShestDonetsk'>Подписаться</a>"
-    return text.strip()
-
-# Создание асинхронного бота
+# Создание объекта Bot для использования с aiogram
 async def create_bot():
     session = aiohttp.ClientSession()
-    bot = Bot(token=TOKEN, session=session)
+    bot = Bot(token=TOKEN, session=session)  # Передаем токен бота
     return bot
 
 # Основная асинхронная функция
 async def main():
     bot = await create_bot()  # Получаем объект бота асинхронно
-    dp = Dispatcher.from_environment()  # Инициализация диспетчера через environment
+    dp = Dispatcher(bot)  # Передаем объект бота в Dispatcher
 
     # Подключаемся к базе данных для хранения хешей
     conn = sqlite3.connect("bot_data.db")
