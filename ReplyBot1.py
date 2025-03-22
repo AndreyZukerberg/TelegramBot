@@ -1,157 +1,116 @@
-import os
 import asyncio
-import sqlite3
 import logging
-import imagehash
-from PIL import Image
-import numpy as np
-import cv2
-import ffmpeg
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Text
+from aiogram.types import ParseMode, ContentType
+from aiogram.utils import executor
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+import re
+from io import BytesIO
+from PIL import Image
+import cv2
+import numpy as np
+import hashlib
 
-# Токен бота
-TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
-
-# Каналы
-SOURCE_CHANNELS = ["-1001234567890", "-1009876543210", "@expltgk"]  # ID каналов
-TARGET_CHANNEL = "-1001122334455"  # ID целевого канала
-ADMIN_ID = 123456789  # ID администратора
-
-# Настройка логирования
+# Включение логирования
 logging.basicConfig(level=logging.INFO)
 
-# Инициализация бота
-bot = Bot(token=TOKEN)  # Убираем ParseMode
+# Токен бота
+TOKEN = 'your_bot_token'
+ADMIN_ID = 123456789  # ID администратора для модерации
+
+# Каналы-источники и целевой канал
+SOURCE_CHANNELS = ['@chp_donetska', '@itsdonetsk', '@expltgk']
+TARGET_CHANNEL = '@ShestDonetsk'
+
+# Создание бота и диспетчера
+bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
-# База данных для хранения хешей сообщений
-conn = sqlite3.connect("bot_data.db")
-cur = conn.cursor()
-cur.execute("""
-    CREATE TABLE IF NOT EXISTS posts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        text_hash TEXT,
-        image_hash TEXT,
-        video_hash TEXT
-    )
-""")
-conn.commit()
+# Словарь для хранения хешей обработанных сообщений (для дубликатов)
+processed_hashes = set()
 
-# Фильтр рекламы
-AD_WORDS = ["реклама", "подпишись", "скидка", "акция", "купить", "магазин", "партнерство"]
-
+# Функция для проверки на рекламу
 def is_advertisement(text):
-    """Проверка, является ли текст рекламным."""
-    text = text.lower()
-    return any(word in text for word in AD_WORDS)
+    ad_keywords = ['реклама', 'скидка', 'купить', 'распродажа']
+    return any(keyword in text.lower() for keyword in ad_keywords)
 
-def get_text_hash(text):
-    """Получение хеша текста."""
-    return str(imagehash.phash(Image.fromarray(np.array(bytearray(text.encode()), dtype=np.uint8).reshape(1, -1))))
+# Функция для удаления водяных знаков с изображений
+def remove_watermark(image):
+    # Пример обработки изображения (простая операция, зависит от водяного знака)
+    np_image = np.array(image)
+    gray = cv2.cvtColor(np_image, cv2.COLOR_BGR2GRAY)
+    _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY)
+    result = cv2.inpaint(np_image, thresh, 3, cv2.INPAINT_TELEA)
+    return Image.fromarray(result)
 
-def get_image_hash(image_path):
-    """Получение хеша изображения."""
-    image = Image.open(image_path).convert("L").resize((8, 8))
-    return str(imagehash.phash(image))
-
-def get_video_hash(video_path):
-    """Получение хеша первого кадра видео."""
-    cap = cv2.VideoCapture(video_path)
-    success, frame = cap.read()
-    cap.release()
-    if success:
-        image = Image.fromarray(frame).convert("L").resize((8, 8))
-        return str(imagehash.phash(image))
-    return None
-
-def remove_watermark(image_path):
-    """Простое удаление вотермарок."""
-    image = cv2.imread(image_path)
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, mask = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY)
-    image[mask == 255] = (255, 255, 255)
-    output_path = image_path.replace(".jpg", "_clean.jpg")
-    cv2.imwrite(output_path, image)
-    return output_path
-
+# Функция для обработки текста и удаления нежелательных фраз
 def clean_text(text):
-    """Удаление рекламных фраз и добавление ссылки."""
-    to_remove = ["💬Написать нам", "Подписаться на канал✅", "Подписаться | Предложить новость"]
-    for phrase in to_remove:
-        text = text.replace(phrase, "")
-    text += f"\n\n🔗 <a href='https://t.me/ShestDonetsk'>Подписаться</a>"
-    return text.strip()
+    unwanted_phrases = ['нежелательная фраза']  # Добавь сюда фразы для удаления
+    for phrase in unwanted_phrases:
+        text = text.replace(phrase, '')
+    text += "\n\nПодписывайтесь на @ShestDonetsk!"
+    return text
 
-@dp.message_handler(lambda message: message.chat.id in SOURCE_CHANNELS)  # Используем фильтрацию по каналам
-async def handle_channel_post(message: types.Message):
-    """Обработка новых сообщений в канале."""
-    if message.text and is_advertisement(message.text):
-        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text="✅ Отправить", callback_data=f"approve_{message.message_id}")],
-            [types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"reject_{message.message_id}")]
-        ])
-        await bot.send_message(ADMIN_ID, f"⚠️ ВОЗМОЖНАЯ РЕКЛАМА ⚠️\n\n{message.text}", reply_markup=keyboard)
-        return
+# Проверка на дубликаты
+def is_duplicate(message):
+    msg_hash = hashlib.md5(message.encode('utf-8')).hexdigest()
+    if msg_hash in processed_hashes:
+        return True
+    processed_hashes.add(msg_hash)
+    return False
 
-    text_hash = get_text_hash(message.text) if message.text else None
-    image_hash = None
-    video_hash = None
+# Функция для отправки сообщения админу для модерации
+async def send_to_admin_for_moderation(message):
+    keyboard = InlineKeyboardMarkup()
+    keyboard.add(InlineKeyboardButton("Отправить", callback_data=f"send:{message.message_id}"))
+    keyboard.add(InlineKeyboardButton("Удалить", callback_data=f"delete:{message.message_id}"))
+    await bot.send_message(ADMIN_ID, f"Потенциальная реклама:\n\n{message.text}", reply_markup=keyboard)
 
-    # Проверка дубликатов
-    cur.execute("SELECT id FROM posts WHERE text_hash = ? OR image_hash = ? OR video_hash = ?", (text_hash, image_hash, video_hash))
-    if cur.fetchone():
-        return
-
-    # Обработка изображений
+# Функция для пересылки поста в целевой канал
+async def forward_to_target_channel(message):
+    text = clean_text(message.text)
     if message.photo:
-        photo = message.photo[-1]
-        file = await bot.get_file(photo.file_id)
-        file_path = f"downloads/{photo.file_id}.jpg"
-        await bot.download_file(file.file_path, file_path)
-        image_hash = get_image_hash(file_path)
+        photo = await bot.get_file(message.photo[-1].file_id)
+        photo_bytes = await bot.download_file(photo.file_path)
+        image = Image.open(BytesIO(photo_bytes))
+        image = remove_watermark(image)
+        with BytesIO() as byte_io:
+            image.save(byte_io, format="PNG")
+            byte_io.seek(0)
+            await bot.send_photo(TARGET_CHANNEL, byte_io, caption=text)
+    else:
+        await bot.send_message(TARGET_CHANNEL, text, parse_mode=ParseMode.HTML)
 
-        # Удаление вотермарки
-        clean_path = remove_watermark(file_path)
-        await bot.send_photo(TARGET_CHANNEL, photo=open(clean_path, "rb"), caption=clean_text(message.caption or ""))
+# Хендлер для новых сообщений
+@dp.message_handler(content_types=[ContentType.TEXT, ContentType.PHOTO])
+async def handle_new_post(message: types.Message):
+    if message.chat.username in SOURCE_CHANNELS:
+        if is_advertisement(message.text):
+            await send_to_admin_for_moderation(message)
+        elif is_duplicate(message.text):
+            logging.info(f"Дубликат сообщения: {message.text}")
+        else:
+            await forward_to_target_channel(message)
 
-    # Обработка видео
-    elif message.video:
-        file = await bot.get_file(message.video.file_id)
-        file_path = f"downloads/{message.video.file_id}.mp4"
-        await bot.download_file(file.file_path, file_path)
-        video_hash = get_video_hash(file_path)
+# Хендлер для обработки команд администратора
+@dp.callback_query_handler(lambda c: c.data.startswith("send"))
+async def process_send(callback_query: types.CallbackQuery):
+    message_id = callback_query.data.split(":")[1]
+    message = await bot.get_message(callback_query.message.chat.id, message_id)
+    await forward_to_target_channel(message)
+    await callback_query.answer("Сообщение отправлено!")
 
-        # Удаление вотермарки (заглушка)
-        await bot.send_video(TARGET_CHANNEL, video=open(file_path, "rb"), caption=clean_text(message.caption or ""))
+@dp.callback_query_handler(lambda c: c.data.startswith("delete"))
+async def process_delete(callback_query: types.CallbackQuery):
+    message_id = callback_query.data.split(":")[1]
+    await bot.delete_message(callback_query.message.chat.id, message_id)
+    await callback_query.answer("Сообщение удалено!")
 
-    # Сохранение хешей
-    cur.execute("INSERT INTO posts (text_hash, image_hash, video_hash) VALUES (?, ?, ?)", (text_hash, image_hash, video_hash))
-    conn.commit()
+# Главная асинхронная функция
+async def on_start():
+    logging.info("Бот запущен и работает!")
+    await dp.start_polling()
 
-    # Пересылка текста
-    if message.text:
-        await bot.send_message(TARGET_CHANNEL, clean_text(message.text))
-
-@dp.callback_query_handler(lambda callback_query: True)
-async def moderation_callback(callback_query: types.CallbackQuery):
-    """Обработка модерации постов."""
-    action, msg_id = callback_query.data.split("_")
-
-    if action == "approve":
-        msg = await bot.forward_message(TARGET_CHANNEL, ADMIN_ID, int(msg_id))
-        await callback_query.message.edit_text(f"✅ Отправлено в канал {TARGET_CHANNEL}")
-
-    elif action == "reject":
-        await callback_query.message.edit_text("❌ Пост удален")
-
-    await callback_query.answer()
-
-async def main():
-    """Запуск бота."""
-    os.makedirs("downloads", exist_ok=True)
-    await bot.delete_webhook(drop_pending_updates=True)
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+# Запуск бота
+if __name__ == '__main__':
+    asyncio.run(on_start())
