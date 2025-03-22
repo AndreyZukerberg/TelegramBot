@@ -10,6 +10,7 @@ import ffmpeg
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ParseMode
 from aiogram.utils import executor
+from aiogram.dispatcher.filters import Text
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
@@ -84,11 +85,9 @@ def clean_text(text):
     text += f"\n\n🔗 <a href='https://t.me/{TARGET_CHANNEL}'>Подписаться</a>"
     return text.strip()
 
+@dp.message_handler(lambda message: message.chat.username in SOURCE_CHANNELS)  # Фильтрация по каналам
 async def handle_message(message: types.Message):
     """Обработка новых сообщений в канале."""
-    if message.chat.username not in SOURCE_CHANNELS:
-        return  # Пропускаем сообщения, не из источников
-
     if message.text and is_advertisement(message.text):
         keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
             [types.InlineKeyboardButton(text="✅ Отправить", callback_data=f"approve_{message.message_id}")],
