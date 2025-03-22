@@ -8,8 +8,6 @@ import numpy as np
 import cv2
 import ffmpeg
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode
-from aiogram.client import Client
 from aiogram.filters import Text
 
 # Токен бота
@@ -24,7 +22,7 @@ ADMIN_ID = 123456789  # ID администратора
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)  # Устанавливаем режим HTML для сообщений
+bot = Bot(token=TOKEN)  # Убираем ParseMode
 dp = Dispatcher(bot)
 
 # База данных для хранения хешей сообщений
