@@ -7,7 +7,8 @@ from PIL import Image
 import numpy as np
 import cv2
 import ffmpeg
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types
+from aiogram.client.bot import DefaultBotProperties
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
@@ -20,8 +21,12 @@ ADMIN_ID = 123456789  # ID администратора
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Инициализация бота
-bot = Bot(token=TOKEN, parse_mode="HTML")
+# Создание объекта DefaultBotProperties
+default_properties = DefaultBotProperties(parse_mode="HTML")
+
+# Инициализация бота с использованием default_properties
+bot = Bot(token=TOKEN, default=default_properties)
+
 dp = Dispatcher()
 
 # База данных для хранения хешей сообщений
