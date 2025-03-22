@@ -1,3 +1,4 @@
+import aiohttp
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -23,14 +24,19 @@ ADMIN_ID = 123456789  # ID администратора
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота с конфигурацией
-from aiogram.client.bot import Bot
-from aiogram.client.session import ClientSession
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 
 # Устанавливаем настройки для бота
 properties = DefaultBotProperties(parse_mode=ParseMode.HTML)
-bot = Bot(token=TOKEN, session=ClientSession(), default=properties)
-dp = Dispatcher(bot)
+
+# Теперь создаём сессию с помощью aiohttp.ClientSession
+async def create_bot():
+    session = aiohttp.ClientSession()
+    bot = Bot(token=TOKEN, session=session, default=properties)
+    return bot
+
+dp = Dispatcher(create_bot())
 
 # База данных для хранения хешей сообщений
 conn = sqlite3.connect("bot_data.db")
