@@ -159,7 +159,7 @@ async def main():
     await bot.delete_webhook(drop_pending_updates=True)
 
     # Регистрация обработчиков
-    dp.message_handler(lambda message: message.chat.id in SOURCE_CHANNELS)(handle_channel_post)
+    dp.message(lambda message: message.chat.id in SOURCE_CHANNELS)(handle_channel_post)
 
     await dp.start_polling(bot)
 
