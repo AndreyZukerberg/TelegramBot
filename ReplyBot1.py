@@ -9,7 +9,7 @@ import cv2
 import ffmpeg
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.utils import executor
+from aiogram.filters import ChatMemberUpdated
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
@@ -17,14 +17,14 @@ TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
 # Каналы
 SOURCE_CHANNELS = ["@chp_donetska", "@itsdonetsk"]
 TARGET_CHANNEL = "@ShestDonetsk"
-ADMIN_ID = "@NoTrustNetAdmin"
+ADMIN_ID = 123456789  # ID администратора (замени на свой)
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
 # Инициализация бота
-bot = Bot(token=TOKEN, parse_mode=types.ParseMode.HTML)
-dp = Dispatcher(bot)
+bot = Bot(token=TOKEN, parse_mode="HTML")
+dp = Dispatcher()
 
 # База данных для хранения хешей сообщений
 conn = sqlite3.connect("bot_data.db")
@@ -84,7 +84,7 @@ def clean_text(text):
     text += f"\n\n🔗 <a href='https://t.me/ShestDonetsk'>Подписаться</a>"
     return text.strip()
 
-@dp.channel_post_handler()
+@dp.channel_post(ChatMemberUpdated())
 async def handle_channel_post(message: types.Message):
     """Обработка новых сообщений в канале."""
     if message.chat.username not in SOURCE_CHANNELS:
@@ -92,10 +92,10 @@ async def handle_channel_post(message: types.Message):
 
     # Проверка рекламы
     if message.text and is_advertisement(message.text):
-        keyboard = InlineKeyboardMarkup().add(
-            InlineKeyboardButton("✅ Отправить", callback_data=f"approve_{message.message_id}"),
-            InlineKeyboardButton("❌ Удалить", callback_data=f"reject_{message.message_id}")
-        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Отправить", callback_data=f"approve_{message.message_id}")],
+            [InlineKeyboardButton(text="❌ Удалить", callback_data=f"reject_{message.message_id}")]
+        ])
         await bot.send_message(ADMIN_ID, f"⚠️ ВОЗМОЖНАЯ РЕКЛАМА ⚠️\n\n{message.text}", reply_markup=keyboard)
         return
 
@@ -138,13 +138,13 @@ async def handle_channel_post(message: types.Message):
     if message.text:
         await bot.send_message(TARGET_CHANNEL, clean_text(message.text))
 
-@dp.callback_query_handler(lambda c: c.data.startswith("approve_") or c.data.startswith("reject_"))
+@dp.callback_query()
 async def moderation_callback(callback_query: types.CallbackQuery):
     """Обработка модерации постов."""
     action, msg_id = callback_query.data.split("_")
 
     if action == "approve":
-        msg = await bot.forward_message(TARGET_CHANNEL, ADMIN_ID, msg_id)
+        msg = await bot.forward_message(TARGET_CHANNEL, ADMIN_ID, int(msg_id))
         await callback_query.message.edit_text(f"✅ Отправлено в канал {TARGET_CHANNEL}")
 
     elif action == "reject":
@@ -152,6 +152,11 @@ async def moderation_callback(callback_query: types.CallbackQuery):
 
     await callback_query.answer()
 
-if __name__ == "__main__":
+async def main():
+    """Запуск бота."""
     os.makedirs("downloads", exist_ok=True)
-    executor.start_polling(dp, skip_updates=True)
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
