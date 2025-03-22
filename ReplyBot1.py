@@ -10,7 +10,7 @@ import ffmpeg
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ParseMode
 from aiogram.utils import executor
-from aiogram.dispatcher.filters import Text
+from aiogram.filters import Text
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
