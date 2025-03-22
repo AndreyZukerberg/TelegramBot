@@ -8,9 +8,10 @@ import numpy as np
 import cv2
 import ffmpeg
 from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Text, ChatType
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.client.bot import DefaultBotProperties
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.filters import Command, Text
+from aiogram import F
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
@@ -89,7 +90,7 @@ def clean_text(text):
     text += f"\n\n🔗 <a href='https://t.me/ShestDonetsk'>Подписаться</a>"
     return text.strip()
 
-@dp.message(ChatType(allowed_chat_types=[types.ChatType.SUPERGROUP]) & Text())
+@dp.message(F.chat.id.in_(SOURCE_CHANNELS))  # Фильтрация по ID каналов
 async def handle_channel_post(message: types.Message):
     """Обработка новых сообщений в канале."""
     if message.text and is_advertisement(message.text):
@@ -139,7 +140,7 @@ async def handle_channel_post(message: types.Message):
     if message.text:
         await bot.send_message(TARGET_CHANNEL, clean_text(message.text))
 
-@dp.callback_query()
+@dp.callback_query(F.data)
 async def moderation_callback(callback_query: types.CallbackQuery):
     """Обработка модерации постов."""
     action, msg_id = callback_query.data.split("_")
@@ -157,6 +158,10 @@ async def main():
     """Запуск бота."""
     os.makedirs("downloads", exist_ok=True)
     await bot.delete_webhook(drop_pending_updates=True)
+
+    # Регистрация обработчиков
+    dp.message_handler(lambda message: message.chat.id in SOURCE_CHANNELS)(handle_channel_post)
+
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
