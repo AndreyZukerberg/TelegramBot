@@ -8,8 +8,8 @@ import numpy as np
 import cv2
 import ffmpeg
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode
 from aiogram.utils import executor
+from aiogram.types import ParseMode
 from aiogram.filters import Text
 
 # Токен бота
