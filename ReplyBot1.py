@@ -10,7 +10,7 @@ import aiohttp
 import asyncio
 from aiogram import Bot, Dispatcher, types
 from aiogram.enums import ParseMode
-from aiogram.client.default import DefaultBotProperties
+from aiogram import Client
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
@@ -24,7 +24,7 @@ ADMIN_ID = 123456789  # ID администратора
 logging.basicConfig(level=logging.INFO)
 
 # Создание объекта DefaultBotProperties для конфигурации
-properties = DefaultBotProperties(parse_mode=ParseMode.HTML)
+properties = Client(token=TOKEN)
 
 # Фильтр рекламы
 AD_WORDS = ["реклама", "подпишись", "скидка", "акция", "купить", "магазин", "партнерство"]
@@ -74,13 +74,13 @@ def clean_text(text):
 # Создание асинхронного бота
 async def create_bot():
     session = aiohttp.ClientSession()
-    bot = Bot(token=TOKEN, session=session, default=properties)
+    bot = Bot(token=TOKEN, session=session)
     return bot
 
 # Основная асинхронная функция
 async def main():
     bot = await create_bot()  # Получаем объект бота асинхронно
-    dp = Dispatcher(bot)  # Передаем готовый объект бота в Dispatcher
+    dp = Dispatcher.from_environment()  # Инициализация диспетчера через environment
 
     # Подключаемся к базе данных для хранения хешей
     conn = sqlite3.connect("bot_data.db")
