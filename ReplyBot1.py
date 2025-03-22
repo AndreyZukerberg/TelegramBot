@@ -1,17 +1,15 @@
+from aiogram import Bot, Dispatcher, types
+from aiogram.enums import ParseMode
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import os
-import asyncio
 import sqlite3
 import logging
+import asyncio
 import imagehash
 from PIL import Image
 import numpy as np
 import cv2
 import ffmpeg
-from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from aiogram.handlers import MessageHandler
-from aiogram.filters import Text
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
