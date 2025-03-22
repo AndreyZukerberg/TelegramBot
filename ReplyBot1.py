@@ -8,8 +8,9 @@ import numpy as np
 import cv2
 import ffmpeg
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
-from aiogram.types import ParseMode
+from aiogram.enums import ParseMode
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.handlers import MessageHandler
 from aiogram.filters import Text
 
 # Токен бота
@@ -85,13 +86,12 @@ def clean_text(text):
     text += f"\n\n🔗 <a href='https://t.me/{TARGET_CHANNEL}'>Подписаться</a>"
     return text.strip()
 
-@dp.message_handler(lambda message: message.chat.username in SOURCE_CHANNELS)  # Фильтрация по каналам
 async def handle_message(message: types.Message):
     """Обработка новых сообщений в канале."""
     if message.text and is_advertisement(message.text):
-        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
-            [types.InlineKeyboardButton(text="✅ Отправить", callback_data=f"approve_{message.message_id}")],
-            [types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"reject_{message.message_id}")]
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Отправить", callback_data=f"approve_{message.message_id}")],
+            [InlineKeyboardButton(text="❌ Удалить", callback_data=f"reject_{message.message_id}")]
         ])
         await bot.send_message(ADMIN_ID, f"⚠️ ВОЗМОЖНАЯ РЕКЛАМА ⚠️\n\n{message.text}", reply_markup=keyboard)
         return
@@ -151,4 +151,4 @@ async def main():
     await process_updates()
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)  # Исправленный вызов executor
+    asyncio.run(main())  # Используем asyncio для запуска бота
