@@ -1,9 +1,8 @@
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode, ContentType
 from aiogram.utils import executor
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import ContentType, InlineKeyboardButton, InlineKeyboardMarkup
 import re
 from io import BytesIO
 from PIL import Image
@@ -79,7 +78,7 @@ async def forward_to_target_channel(message):
             byte_io.seek(0)
             await bot.send_photo(TARGET_CHANNEL, byte_io, caption=text)
     else:
-        await bot.send_message(TARGET_CHANNEL, text, parse_mode=ParseMode.HTML)
+        await bot.send_message(TARGET_CHANNEL, text, parse_mode="HTML")
 
 # Хендлер для новых сообщений
 @dp.message_handler(content_types=[ContentType.TEXT, ContentType.PHOTO])
