@@ -7,17 +7,15 @@ from PIL import Image
 import numpy as np
 import cv2
 import ffmpeg
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import ChatMemberUpdated
+from aiogram import Bot, Dispatcher, types, F
 
 # Токен бота
 TOKEN = "7616945089:AAFBZnirPqwYdGl_ZfG-cXC31qTdwnAxqVM"
 
 # Каналы
-SOURCE_CHANNELS = ["@chp_donetska", "@itsdonetsk"]
-TARGET_CHANNEL = "@ShestDonetsk"
-ADMIN_ID = 123456789  # ID администратора (замени на свой)
+SOURCE_CHANNELS = ["-1001234567890", "-1009876543210"]  # ID каналов
+TARGET_CHANNEL = "-1001122334455"  # ID целевого канала
+ADMIN_ID = 123456789  # ID администратора
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +37,7 @@ cur.execute("""
 """)
 conn.commit()
 
-# Фильтр рекламы (можно дорабатывать)
+# Фильтр рекламы
 AD_WORDS = ["реклама", "подпишись", "скидка", "акция", "купить", "магазин", "партнерство"]
 
 def is_advertisement(text):
@@ -67,7 +65,7 @@ def get_video_hash(video_path):
     return None
 
 def remove_watermark(image_path):
-    """Простое удаление вотермарок (базовый метод)."""
+    """Простое удаление вотермарок."""
     image = cv2.imread(image_path)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     _, mask = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY)
@@ -84,17 +82,13 @@ def clean_text(text):
     text += f"\n\n🔗 <a href='https://t.me/ShestDonetsk'>Подписаться</a>"
     return text.strip()
 
-@dp.channel_post(ChatMemberUpdated())
+@dp.message(F.chat.id.in_(SOURCE_CHANNELS))
 async def handle_channel_post(message: types.Message):
     """Обработка новых сообщений в канале."""
-    if message.chat.username not in SOURCE_CHANNELS:
-        return
-
-    # Проверка рекламы
     if message.text and is_advertisement(message.text):
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Отправить", callback_data=f"approve_{message.message_id}")],
-            [InlineKeyboardButton(text="❌ Удалить", callback_data=f"reject_{message.message_id}")]
+        keyboard = types.InlineKeyboardMarkup(inline_keyboard=[
+            [types.InlineKeyboardButton(text="✅ Отправить", callback_data=f"approve_{message.message_id}")],
+            [types.InlineKeyboardButton(text="❌ Удалить", callback_data=f"reject_{message.message_id}")]
         ])
         await bot.send_message(ADMIN_ID, f"⚠️ ВОЗМОЖНАЯ РЕКЛАМА ⚠️\n\n{message.text}", reply_markup=keyboard)
         return
@@ -127,7 +121,7 @@ async def handle_channel_post(message: types.Message):
         await bot.download_file(file.file_path, file_path)
         video_hash = get_video_hash(file_path)
 
-        # Удаление вотермарки (заглушка, можно доработать)
+        # Удаление вотермарки (заглушка)
         await bot.send_video(TARGET_CHANNEL, video=open(file_path, "rb"), caption=clean_text(message.caption or ""))
 
     # Сохранение хешей
