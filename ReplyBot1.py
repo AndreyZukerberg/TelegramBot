@@ -1,117 +1,89 @@
 import os
 import shutil
 import logging
-import asyncio
 from telethon import TelegramClient, events
-from telethon.tl.types import MessageMediaPhoto
+from telethon.tl.types import InputMediaPhoto
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# Установите параметры своего клиента
-api_id = 20382465  # ваш api_id
-api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"  # ваш api_hash
-phone_number = "+380713626583"  # ваш номер телефона
+# Укажите свои данные
+api_id = 20382465
+api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"
+phone_number = "+380713626583"
 
-# Настройка клиента Telethon
+# Создание клиента
 client = TelegramClient('shest_bot', api_id, api_hash)
 
-# Канал источника и канал назначения
-source_channel = 'expltgk'  # Источник (название канала без https://t.me/)
-target_channel = 'ShestDonetsk'  # Цель (название канала без https://t.me/)
+# Каналы
+source_channel = 'expltgk'
+target_channel = 'ShestDonetsk'
 
-# Функция для скачивания медиафайлов
+# Функция для скачивания фото
 async def download_media(message):
     media_files = []
-    try:
-        # Проверка на медиафайл
-        if isinstance(message.media, MessageMediaPhoto):
-            file_path = await client.download_media(message.media, "./downloads/")
+    download_folder = "./downloads/"
+    os.makedirs(download_folder, exist_ok=True)
+
+    if message.media:
+        file_path = await client.download_media(message.media, download_folder)
+        if file_path:
             logging.info(f"Скачан файл: {file_path}")
             media_files.append(file_path)
 
-        # Для случая, если несколько медиафайлов
-        if message.media and hasattr(message.media, 'photos'):
-            for photo in message.media.photos:
-                file_path = await client.download_media(photo, "./downloads/")
-                logging.info(f"Скачано фото: {file_path}")
-                media_files.append(file_path)
-
-    except Exception as e:
-        logging.error(f"Ошибка при скачивании медиа: {str(e)}")
-    
     return media_files
 
 
-# Функция для отправки медиа и текста в целевой канал
+# Функция загрузки и отправки медиа
 async def send_message_with_media(message, media_files):
     try:
-        logging.info("Подготовка к отправке сообщения с медиафайлами...")
-        
-        # Пауза для того, чтобы файлы успели загрузиться
-        await asyncio.sleep(2)
+        # Загружаем файлы на сервер Telegram
+        uploaded_files = []
+        for file in media_files:
+            uploaded_file = await client.upload_file(file)
+            if uploaded_file:
+                uploaded_files.append(uploaded_file)
 
-        # Логируем перед отправкой
-        logging.info(f"Готовим {len(media_files)} медиафайлов для отправки в канал {target_channel}.")
-        logging.debug(f"Список файлов для отправки: {media_files}")
+        # Если есть несколько файлов, отправляем их группой
+        if len(uploaded_files) > 1:
+            await client.send_file(target_channel, uploaded_files)
+            logging.info(f"Группа медиа отправлена в {target_channel}")
+        elif len(uploaded_files) == 1:
+            # Если только один файл, отправляем его как одиночное медиа
+            await client.send_file(target_channel, uploaded_files[0])
+            logging.info(f"Одиночный медиа файл отправлен в {target_channel}")
 
-        # Проверка на то, что media_files не пустой
-        if media_files:
-            if isinstance(media_files, list) and len(media_files) > 0:
-                try:
-                    logging.info(f"Отправка {len(media_files)} медиафайлов в канал {target_channel}.")
-                    await client.send_file(target_channel, files=media_files, caption=message.text, force_document=False)
-                    logging.info(f"Сообщение отправлено в канал {target_channel}.")
-                except Exception as e:
-                    logging.error(f"Ошибка при пересылке файлов: {str(e)}")
-            else:
-                logging.error("Ошибка: media_files не содержит файлов или не является списком.")
-        else:
-            logging.warning("media_files пустой список.")
+        # Отправка текста
+        if message.text:
+            await client.send_message(target_channel, message.text)
+            logging.info("Текст сообщения отправлен.")
 
-        # Пауза для уверенности, что сообщения отправлены
-        await asyncio.sleep(2)
-
-        # Удаляем скачанные файлы
-        logging.info(f"Удаление файлов: {media_files}")
+        # Удаление файлов и папки
         for file in media_files:
             if os.path.exists(file):
                 os.remove(file)
-                logging.info(f"Удален файл: {file}")
-            else:
-                logging.warning(f"Файл не найден для удаления: {file}")
-
-        # Удаляем папку с загруженными файлами
-        if os.path.exists('./downloads/'):
-            shutil.rmtree('./downloads/')
-            logging.info("Удалена папка ./downloads/")
+        shutil.rmtree("./downloads/")
 
     except Exception as e:
-        logging.error(f"Ошибка при пересылке сообщения: {str(e)}")
+        logging.error(f"Ошибка при отправке: {str(e)}")
 
 
 # Обработчик новых сообщений
 @client.on(events.NewMessage(chats=source_channel))
 async def handler(event):
     message = event.message
-    logging.info(f"Получено сообщение от {source_channel}: {message.id}")
+    logging.info(f"Получено сообщение {message.id}")
 
-    # Скачиваем все медиафайлы из сообщения
     media_files = await download_media(message)
-
-    # Пауза перед отправкой сообщения
-    await asyncio.sleep(1)
-
-    # Пересылаем сообщение с текстом и медиа
     await send_message_with_media(message, media_files)
 
 
-# Запуск клиента
+# Запуск бота
 async def main():
     await client.start(phone_number)
     logging.info("Бот запущен.")
     await client.run_until_disconnected()
 
-# Запуск программы
+
 if __name__ == "__main__":
     client.loop.run_until_complete(main())
