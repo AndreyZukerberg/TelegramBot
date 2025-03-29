@@ -24,24 +24,10 @@ channel_mapping = {
     '@naebnet': '@NoTrustNet'
 }
 
-# Список ключевых слов для фильтрации рекламы
-ad_keywords = [
-    "реклама", "маркетинг", "брендинг", "целевая аудитория", "рекламные кампании", "SMM", "SEO", 
-    "инфлюенсеры", "таргетинг", "баннеры", "видеоролики", "продвижение", "рекламные платформы", 
-    "реклама.", "#реклама"
-]
-
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
 client = TelegramClient(phone_number, api_id, api_hash)
-
-async def remove_ads(text):
-    """Удаляет из текста ссылки и слова, связанные с рекламой."""
-    for word in ad_keywords:
-        text = re.sub(rf'\b{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
-    text = re.sub(r'https?://\S+', '', text)  # Удаление ссылок
-    return text.strip()
 
 async def send_message(client, target_channel, text, media=None):
     """Отправка сообщения в канал с медиа."""
@@ -57,14 +43,6 @@ async def handle_message(event, source_channel):
     # Получаем данные о сообщении
     message = event.message
 
-    # Фильтрация рекламы
-    text = message.text
-    filtered_text = await remove_ads(text)
-
-    # Проверка на наличие рекламы и логирование
-    if filtered_text != text:
-        logging.info(f"Сообщение от канала {source_channel} содержит рекламу и было отфильтровано.")
-
     # Пересылка в целевой канал
     target_channel = channel_mapping.get(source_channel)
     if target_channel:
@@ -72,10 +50,10 @@ async def handle_message(event, source_channel):
         if message.media:
             # Отправка медиа в одном сообщении
             media = message.media
-            await send_message(client, target_channel, filtered_text, media=media)
+            await send_message(client, target_channel, message.text, media=media)
         else:
             # Отправка только текста
-            await send_message(client, target_channel, filtered_text)
+            await send_message(client, target_channel, message.text)
 
 @client.on(events.NewMessage(from_users=list(channel_mapping.keys())))
 async def forward_message(event):
