@@ -46,6 +46,9 @@ async def download_media(message):
 # Функция для отправки медиа и текста в целевой канал
 async def send_message_with_media(message, media_files):
     try:
+        # Пауза для того, чтобы файлы успели загрузиться
+        await asyncio.sleep(2)
+
         # Отправляем все медиа в целевой канал в одном сообщении
         if media_files:
             await client.send_file(target_channel, media_files, caption=message.text, force_document=False)
@@ -79,6 +82,9 @@ async def handler(event):
 
     # Скачиваем все медиафайлы из сообщения
     media_files = await download_media(message)
+
+    # Пауза перед отправкой сообщения
+    await asyncio.sleep(1)
 
     # Пересылаем сообщение с текстом и медиа
     await send_message_with_media(message, media_files)
