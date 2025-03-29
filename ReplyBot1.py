@@ -1,88 +1,97 @@
 import logging
-import asyncio
-from telethon import TelegramClient, events, Button
+from telethon import TelegramClient, events
+from telethon.tl.functions.messages import SendMediaRequest
+from telethon.tl.types import InputPeerChannel, InputPeerUser
+import re
 
-# Настройки бота
-API_ID = "your_api_id"
-API_HASH = "your_api_hash"
-PHONE_NUMBER = "your_phone_number"  # Добавленная строка с номером телефона
+# Настройки
+api_id = 20382465
+api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"
+phone_number = "+380713626583"
 
-# Каналы источники и назначения
-CHANNELS_MAP = {
-    "chp_donetska": "ShestDonetsk",
-    "moscowach": "MosNevSlp",
-    "mash_siberia": "ShestNovosib",
-    "e1_news": "ShestEKB",
-    "kazancity": "ShestKazan",
-    "incidentkld": "ShestKaliningrad",
-    "etorostov": "ShestRostov",
-    "moynizhny": "ShestNN",
-    "naebnet": "NoTrustNet",
-    "expltgk": ["ShestDonetsk", "MosNevSlp", "ShestNovosib", "ShestEKB", "ShestKazan", "ShestKaliningrad", "ShestRostov", "ShestNN", "NoTrustNet"]
+# Каналы источники и целевые каналы
+channel_mapping = {
+    'https://t.me/+QUo4lv3MKq04Yjk6': '@Piterburg24na7',
+    '@chp_donetska': '@ShestDonetsk',
+    '@moscowach': '@MosNevSlp',
+    '@mash_siberia': '@ShestNovosib',
+    '@e1_news': '@ShestEKB',
+    '@kazancity': '@ShestKazan',
+    '@incidentkld': '@ShestKaliningrad',
+    '@etorostov': '@ShestRostov',
+    '@moynizhny': '@ShestNN',
+    '@expltgk': '@ShestDonetsk',  # Все каналы получают посты от @expltgk
+    '@naebnet': '@NoTrustNet'
 }
 
-# Админ для модерации
-ADMIN_USERNAME = "NoTrustNetAdmin"
+# Список ключевых слов для фильтрации рекламы
+ad_keywords = [
+    "реклама", "маркетинг", "брендинг", "целевая аудитория", "рекламные кампании", "SMM", "SEO", 
+    "инфлюенсеры", "таргетинг", "баннеры", "видеоролики", "продвижение", "рекламные платформы", 
+    "реклама.", "#реклама"
+]
 
-# Ключевые слова для фильтрации рекламы
-AD_KEYWORDS = {"реклама", "маркетинг", "брендинг", "SMM", "SEO", "инфлюенсеры", "таргетинг", "рекламные кампании"}
+# Настройка логирования
+logging.basicConfig(level=logging.INFO)
 
-# Логирование
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
+client = TelegramClient(phone_number, api_id, api_hash)
 
-# Создание клиента
-client = TelegramClient("bot_session", API_ID, API_HASH)
+async def remove_ads(text):
+    """Удаляет из текста ссылки и слова, связанные с рекламой."""
+    # Убираем все ссылки и рекламные фразы
+    for word in ad_keywords:
+        text = re.sub(rf'\b{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'https?://\S+', '', text)  # Удаление ссылок
+    return text.strip()
 
-@client.on(events.NewMessage(chats=list(CHANNELS_MAP.keys())))
-async def forward_message(event):
-    source_channel = event.chat.username or event.chat.id
-    target_channels = CHANNELS_MAP.get(source_channel, [])
-    if not isinstance(target_channels, list):
-        target_channels = [target_channels]
-    
-    # Проверка на рекламу
-    if any(word.lower() in event.raw_text.lower() for word in AD_KEYWORDS):
-        await send_to_admin(event)
-        return
-    
-    # Пересылка в целевые каналы
-    for target in target_channels:
-        try:
-            await client.send_message(target, event.message)
-        except Exception as e:
-            logger.error(f"Ошибка при пересылке сообщения в {target}: {e}")
+async def send_message(client, target_channel, text, media=None):
+    """Отправка сообщения в канал с медиа."""
+    if media:
+        # Отправка медиа файлов
+        await client.send_message(target_channel, text=text, media=media)
+    else:
+        # Отправка только текста
+        await client.send_message(target_channel, text=text)
 
-async def send_to_admin(event):
-    buttons = [
-        [Button.inline("Отправить", b"send"), Button.inline("Отклонить", b"reject")]
-    ]
-    await client.send_message(ADMIN_USERNAME, event.message, buttons=buttons)
+async def handle_message(event, source_channel):
+    """Обрабатывает входящие сообщения и пересылает их в целевые каналы."""
+    # Получаем данные о сообщении
+    message = event.message
 
-@client.on(events.CallbackQuery())
-async def callback_handler(event):
-    if event.sender.username != ADMIN_USERNAME:
-        return
-    
-    if event.data == b"send":
-        source_channel = event.message.chat.username or event.message.chat.id
-        target_channels = CHANNELS_MAP.get(source_channel, [])
-        if not isinstance(target_channels, list):
-            target_channels = [target_channels]
+    # Фильтрация рекламы
+    text = message.text
+    filtered_text = await remove_ads(text)
+
+    # Если сообщение не содержит рекламы, пересылаем его в соответствующий канал
+    if filtered_text != text:
+        # Логируем рекламный пост
+        logging.info(f"Найден рекламный пост в канале {source_channel}")
         
-        for target in target_channels:
-            try:
-                await client.send_message(target, event.message)
-            except Exception as e:
-                logger.error(f"Ошибка при пересылке подтвержденного сообщения в {target}: {e}")
-        await event.answer("Сообщение отправлено")
-    elif event.data == b"reject":
-        await event.answer("Сообщение отклонено")
+        # Отправляем администратору для модерации
+        await client.send_message('@NoTrustNetAdmin', 'Пост требует модерации:\n' + message.text)
+    else:
+        # Получаем целевой канал, соответствующий источнику
+        target_channel = channel_mapping.get(source_channel)
+        if target_channel:
+            # Пересылаем в целевой канал
+            if message.media:
+                # Отправка медиа
+                await send_message(client, target_channel, filtered_text, media=message.media)
+            else:
+                # Отправка только текста
+                await send_message(client, target_channel, filtered_text)
+
+@client.on(events.NewMessage(from_users=list(channel_mapping.keys())))
+async def forward_message(event):
+    """Обрабатывает новые сообщения от указанных каналов источников."""
+    source_channel = event.sender_id
+    await handle_message(event, source_channel)
 
 async def main():
-    await client.start(phone=PHONE_NUMBER)
-    logger.info("Бот запущен")
+    """Главная функция для запуска бота."""
+    logging.info("Бот запущен")
+    await client.start()
     await client.run_until_disconnected()
 
-if __name__ == "__main__":
-    asyncio.run(main())
+# Запуск клиента
+client.loop.run_until_complete(main())
