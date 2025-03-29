@@ -38,7 +38,6 @@ client = TelegramClient(phone_number, api_id, api_hash)
 
 async def remove_ads(text):
     """Удаляет из текста ссылки и слова, связанные с рекламой."""
-    # Убираем все ссылки и рекламные фразы
     for word in ad_keywords:
         text = re.sub(rf'\b{re.escape(word)}\b', '', text, flags=re.IGNORECASE)
     text = re.sub(r'https?://\S+', '', text)  # Удаление ссылок
@@ -47,7 +46,7 @@ async def remove_ads(text):
 async def send_message(client, target_channel, text, media=None):
     """Отправка сообщения в канал с медиа."""
     if media:
-        # Отправка медиа файлов
+        # Отправка медиа файлов, отправляем сразу все медиа в одном сообщении
         await client.send_message(target_channel, text=text, media=media)
     else:
         # Отправка только текста
@@ -62,24 +61,21 @@ async def handle_message(event, source_channel):
     text = message.text
     filtered_text = await remove_ads(text)
 
-    # Если сообщение не содержит рекламы, пересылаем его в соответствующий канал
+    # Проверка на наличие рекламы и логирование
     if filtered_text != text:
-        # Логируем рекламный пост
-        logging.info(f"Найден рекламный пост в канале {source_channel}")
-        
-        # Отправляем администратору для модерации
-        await client.send_message('@NoTrustNetAdmin', 'Пост требует модерации:\n' + message.text)
-    else:
-        # Получаем целевой канал, соответствующий источнику
-        target_channel = channel_mapping.get(source_channel)
-        if target_channel:
-            # Пересылаем в целевой канал
-            if message.media:
-                # Отправка медиа
-                await send_message(client, target_channel, filtered_text, media=message.media)
-            else:
-                # Отправка только текста
-                await send_message(client, target_channel, filtered_text)
+        logging.info(f"Сообщение от канала {source_channel} содержит рекламу и было отфильтровано.")
+
+    # Пересылка в целевой канал
+    target_channel = channel_mapping.get(source_channel)
+    if target_channel:
+        # Пересылаем в целевой канал
+        if message.media:
+            # Отправка медиа в одном сообщении
+            media = message.media
+            await send_message(client, target_channel, filtered_text, media=media)
+        else:
+            # Отправка только текста
+            await send_message(client, target_channel, filtered_text)
 
 @client.on(events.NewMessage(from_users=list(channel_mapping.keys())))
 async def forward_message(event):
