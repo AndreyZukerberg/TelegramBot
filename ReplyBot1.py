@@ -1,7 +1,7 @@
 import logging
 from telethon import TelegramClient, events
 from telethon.tl.functions.messages import SendMediaRequest
-from telethon.tl.types import InputPeerChannel, InputPeerUser
+from telethon.tl.types import InputPeerChannel
 import re
 
 # Настройки
@@ -55,10 +55,10 @@ async def handle_message(event, source_channel):
             # Отправка только текста
             await send_message(client, target_channel, message.text)
 
-@client.on(events.NewMessage(from_users=list(channel_mapping.keys())))
+@client.on(events.NewMessage(from_channels=list(channel_mapping.keys())))
 async def forward_message(event):
     """Обрабатывает новые сообщения от указанных каналов источников."""
-    source_channel = event.sender_id
+    source_channel = event.chat_id  # Используем chat_id для получения канала
     await handle_message(event, source_channel)
 
 async def main():
