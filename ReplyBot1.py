@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from telethon import TelegramClient, events
-from telethon.tl.types import MessageMediaPhoto
+from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -22,11 +22,19 @@ target_channel = 'https://t.me/ShestDonetsk'
 # Функция для отправки сообщений
 async def send_message_with_media(message):
     try:
-        # Скачиваем все медиафайлы из поста
         media_files = []
-        for media in message.media:
-            # Путь для скачивания медиа
-            file_path = await client.download_media(media, "./downloads/")
+
+        # Если сообщение содержит фотографии
+        if isinstance(message.media, MessageMediaPhoto):
+            # Скачиваем фото
+            file_path = await client.download_media(message.media, "./downloads/")
+            logging.info(f"Скачан файл: {file_path}")
+            media_files.append(file_path)
+        
+        # Если сообщение содержит документ (например, PDF, архив)
+        elif isinstance(message.media, MessageMediaDocument):
+            # Скачиваем документ
+            file_path = await client.download_media(message.media, "./downloads/")
             logging.info(f"Скачан файл: {file_path}")
             media_files.append(file_path)
 
