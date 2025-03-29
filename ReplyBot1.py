@@ -21,7 +21,7 @@ client = TelegramClient(phone_number, api_id, api_hash)
 
 @client.on(events.NewMessage(chats=source_channel))
 async def forward_message(event):
-    """Пересылка сообщений с сохранением и отправкой всех медиафайлов в одном посте."""
+    """Пересылка сообщений с сохранением всех медиафайлов в одном посте."""
     try:
         media_files = []
         temp_dir = "temp_media"
@@ -31,7 +31,12 @@ async def forward_message(event):
 
         # Скачивание всех медиафайлов
         if event.message.media:
-            for media in event.message.media.document.attributes:
+            if isinstance(event.message.media, MessageMediaPhoto):  # Фото
+                file_path = await event.message.download_media(file=temp_dir)
+                if file_path:
+                    media_files.append(file_path)
+
+            elif isinstance(event.message.media, MessageMediaDocument):  # Документы (видео, GIF, стикеры и т. д.)
                 file_path = await event.message.download_media(file=temp_dir)
                 if file_path:
                     media_files.append(file_path)
@@ -39,7 +44,7 @@ async def forward_message(event):
         # Отправка всех медиафайлов одним постом
         if media_files:
             await client.send_file(target_channel, media_files, caption=event.message.text or "", album=True)
-            
+
             # Удаление файлов после отправки
             for file in media_files:
                 os.remove(file)
