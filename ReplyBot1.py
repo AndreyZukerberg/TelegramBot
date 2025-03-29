@@ -29,15 +29,16 @@ async def forward_message(event):
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
 
-        # Скачивание медиафайлов
+        # Скачивание всех медиафайлов
         if event.message.media:
-            if isinstance(event.message.media, (MessageMediaPhoto, MessageMediaDocument)):
+            for media in event.message.media.document.attributes:
                 file_path = await event.message.download_media(file=temp_dir)
-                media_files.append(file_path)
+                if file_path:
+                    media_files.append(file_path)
 
-        # Отправка медиафайлов одним постом
+        # Отправка всех медиафайлов одним постом
         if media_files:
-            await client.send_file(target_channel, media_files, caption=event.message.text or "")
+            await client.send_file(target_channel, media_files, caption=event.message.text or "", album=True)
             
             # Удаление файлов после отправки
             for file in media_files:
