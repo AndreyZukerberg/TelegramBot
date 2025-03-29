@@ -1,75 +1,73 @@
 import logging
 import os
+import shutil
 from telethon import TelegramClient, events
+from telethon.tl.types import MessageMediaPhoto
 
-# Настройки API
-api_id = 20382465
-api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"
-phone_number = "+380713626583"
-
-# Каналы
-source_channel = "expltgk"
-target_channel = "ShestDonetsk"
-
-# Логирование
+# Настройка логирования
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-# Создание клиента
-client = TelegramClient(phone_number, api_id, api_hash)
+# Установите параметры своего клиента
+api_id = 20382465  # ваш api_id
+api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"  # ваш api_hash
+phone_number = "+380713626583"  # ваш номер телефона
 
-@client.on(events.NewMessage(chats=source_channel))
-async def forward_message(event):
-    """Пересылка сообщений с сохранением всех медиафайлов в одном посте."""
+# Настройка клиента Telethon
+client = TelegramClient('shest_bot', api_id, api_hash)
+
+# Канал источника и канал назначения
+source_channel = 'https://t.me/expltgk'
+target_channel = 'https://t.me/ShestDonetsk'
+
+# Функция для отправки сообщений
+async def send_message_with_media(message):
     try:
+        # Скачиваем все медиафайлы из поста
         media_files = []
-        temp_dir = "temp_media"
+        for media in message.media:
+            # Путь для скачивания медиа
+            file_path = await client.download_media(media, "./downloads/")
+            logging.info(f"Скачан файл: {file_path}")
+            media_files.append(file_path)
 
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
-
-        # Проверяем, является ли сообщение частью альбома
-        if event.message.grouped_id:
-            grouped_id = event.message.grouped_id
-            messages = await event.client.get_messages(source_channel, limit=20)
-            album_messages = [msg for msg in messages if msg.grouped_id == grouped_id]
-
-            for msg in album_messages:
-                if msg.media:
-                    file_path = await msg.download_media(file=temp_dir)
-                    if file_path:
-                        media_files.append(file_path)
-
-        else:  # Одиночное сообщение
-            if event.message.media:
-                file_path = await event.message.download_media(file=temp_dir)
-                if file_path:
-                    media_files.append(file_path)
-
-        # Проверяем, есть ли медиафайлы перед отправкой
+        # Отправляем файлы в целевой канал
         if media_files:
-            await client.send_file(target_channel, media=media_files, caption=event.message.text or "")
-            
-            # Удаление файлов после отправки
-            for file in media_files:
+            await client.send_file(target_channel, media_files, caption=message.text)
+            logging.info(f"Сообщение отправлено в канал {target_channel}")
+
+        # Удаляем скачанные файлы
+        for file in media_files:
+            if os.path.exists(file):
                 os.remove(file)
+                logging.info(f"Удален файл: {file}")
+            else:
+                logging.warning(f"Файл не найден для удаления: {file}")
 
-            logger.info(f"Сообщение с медиа переслано из {source_channel} в {target_channel}")
-        else:
-            await client.send_message(target_channel, event.message.text or "")
-            logger.info(f"Текстовое сообщение переслано из {source_channel} в {target_channel}")
+        # Удаляем папку с загруженными файлами
+        if os.path.exists('./downloads/'):
+            shutil.rmtree('./downloads/')
+            logging.info("Удалена папка ./downloads/")
 
     except Exception as e:
-        logger.error(f"Ошибка при пересылке сообщения: {e}")
+        logging.error(f"Ошибка при пересылке сообщения: {str(e)}")
 
-async def main():
-    """Запуск бота."""
-    try:
-        logger.info("Бот запущен")
-        await client.start(phone_number)
-        await client.run_until_disconnected()
-    except Exception as e:
-        logger.error(f"Ошибка при запуске бота: {e}")
+
+# Обработчик новых сообщений
+@client.on(events.NewMessage(from_channels=[source_channel]))
+async def handler(event):
+    message = event.message
+    logging.info(f"Получено сообщение от {source_channel}: {message.id}")
+
+    # Пересылаем сообщение с медиа
+    await send_message_with_media(message)
+
 
 # Запуск клиента
-client.loop.run_until_complete(main())
+async def main():
+    await client.start(phone_number)
+    logging.info("Бот запущен.")
+    await client.run_until_disconnected()
+
+# Запуск программы
+if __name__ == "__main__":
+    client.loop.run_until_complete(main())
