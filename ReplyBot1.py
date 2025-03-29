@@ -25,21 +25,21 @@ async def forward_message(event):
             # Если в сообщении есть медиафайлы, собираем их
             media_files = []
             if event.message.media:
-                # Если есть фото
+                # Проверяем и добавляем фото
                 if event.message.photo:
                     media_files.append(InputMediaPhoto(event.message.photo))
-                # Если есть видео
+                # Проверяем и добавляем видео
                 elif event.message.video:
                     media_files.append(InputMediaVideo(event.message.video))
-                # Если есть документ
+                # Проверяем и добавляем документы
                 elif event.message.document:
                     media_files.append(InputMediaDocument(event.message.document))
 
-                # Теперь, если несколько медиафайлов, отправляем их в одном сообщении
-                if media_files:
+                # Если в сообщении несколько медиафайлов, добавляем все медиафайлы
+                if len(media_files) > 1:
                     await client.send_media(target_channel, media_files)
-                else:
-                    await client.send_message(target_channel, event.message)
+                elif len(media_files) == 1:
+                    await client.send_media(target_channel, media_files[0])  # Отправка одиночного медиа
 
             else:
                 # Если медиа нет, пересылаем сообщение как текст
