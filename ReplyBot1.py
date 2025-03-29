@@ -1,7 +1,6 @@
 import logging
 import os
 from telethon import TelegramClient, events
-from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
 # Настройки API
 api_id = 20382465
@@ -19,7 +18,6 @@ logger = logging.getLogger(__name__)
 # Создание клиента
 client = TelegramClient(phone_number, api_id, api_hash)
 
-
 @client.on(events.NewMessage(chats=source_channel))
 async def forward_message(event):
     """Пересылка сообщений с сохранением всех медиафайлов в одном посте."""
@@ -32,8 +30,9 @@ async def forward_message(event):
 
         # Проверяем, является ли сообщение частью альбома
         if event.message.grouped_id:
-            # Получаем все сообщения из альбома
-            album_messages = await event.client.get_messages(source_channel, ids=[event.message.id])
+            grouped_id = event.message.grouped_id
+            messages = await event.client.get_messages(source_channel, limit=10)
+            album_messages = [msg for msg in messages if msg.grouped_id == grouped_id]
 
             for msg in album_messages:
                 if msg.media:
@@ -49,7 +48,7 @@ async def forward_message(event):
 
         # Отправка всех медиафайлов в одном посте
         if media_files:
-            await client.send_file(target_channel, media_files, caption=event.message.text or "", album=True)
+            await client.send_file(target_channel, media=media_files, caption=event.message.text or "")
 
             # Удаление файлов после отправки
             for file in media_files:
@@ -63,7 +62,6 @@ async def forward_message(event):
     except Exception as e:
         logger.error(f"Ошибка при пересылке сообщения: {e}")
 
-
 async def main():
     """Запуск бота."""
     try:
@@ -72,7 +70,6 @@ async def main():
         await client.run_until_disconnected()
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
-
 
 # Запуск клиента
 client.loop.run_until_complete(main())
