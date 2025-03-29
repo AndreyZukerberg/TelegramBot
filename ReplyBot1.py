@@ -1,6 +1,6 @@
 import logging
 from telethon import TelegramClient, events
-from telethon.tl.types import MessageMediaPhoto, MessageMediaVideo
+from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
 # Настройки для подключения
 api_id = 20382465  # Ваш API ID
@@ -22,20 +22,14 @@ client = TelegramClient(phone_number, api_id, api_hash)
 async def forward_message(event):
     """Функция для пересылки сообщения без изменений (с несколькими медиафайлами)."""
     try:
-        # Если в сообщении есть медиафайлы, соберем их
         media = []
-        if event.message.media:
-            # Проверяем тип медиа (фото, видео и т. д.)
-            if isinstance(event.message.media, MessageMediaPhoto):
-                media.append(event.message.media)
-            elif isinstance(event.message.media, MessageMediaVideo):
-                media.append(event.message.media)
-            else:
-                media.append(event.message.media)  # Добавляем все остальные медиафайлы
 
-        # Пересылаем сообщение с медиа (все медиа в одном сообщении)
+        if event.message.media:
+            if isinstance(event.message.media, (MessageMediaPhoto, MessageMediaDocument)):
+                media.append(event.message.media)
+
         if media:
-            await client.send_media(target_channel, media, caption=event.message.text)
+            await client.send_file(target_channel, media, caption=event.message.text or "")
         else:
             await client.send_message(target_channel, event.message.text)
 
@@ -47,7 +41,7 @@ async def main():
     """Основная функция для запуска бота."""
     try:
         logger.info("Бот запущен")
-        await client.start()
+        await client.start(phone_number)
         await client.run_until_disconnected()
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
