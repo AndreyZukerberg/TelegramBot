@@ -23,11 +23,11 @@ async def forward_message(event):
         if source_channel in source_channels:
             # Если в сообщении есть медиафайлы, пересылаем их
             if event.message.media:
-                # Отправляем сообщение с медиафайлом через send_message, передавая media как параметр
-                await client.send_message(target_channel, media=event.message.media)
+                # Используем send_media для отправки медиа
+                await client.send_media(target_channel, event.message.media)
             else:
                 # Если медиа нет, пересылаем сообщение как текст
-                await client.send_message(target_channel, event.message)
+                await client.send_message(target_channel, event.message.text)
 
             print(f"Переслано сообщение из {source_channel} в {target_channel}")
             break  # После нахождения соответствующего канала источника выходим из цикла
