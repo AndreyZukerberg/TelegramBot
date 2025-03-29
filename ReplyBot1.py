@@ -30,10 +30,10 @@ async def forward_message(event):
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
 
-        # Скачивание всех медиафайлов из поста
-        if event.message.grouped_id:  # Проверяем, что сообщение является частью альбома
-            messages = await event.client.get_messages(source_channel, max_id=event.message.id + 10, min_id=event.message.id - 10)
-            album_messages = [msg for msg in messages if msg.grouped_id == event.message.grouped_id]
+        # Проверяем, является ли сообщение частью альбома
+        if event.message.grouped_id:
+            # Получаем все сообщения из альбома
+            album_messages = await event.client.get_messages(source_channel, ids=[event.message.id])
 
             for msg in album_messages:
                 if msg.media:
