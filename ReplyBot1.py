@@ -1,90 +1,35 @@
 import logging
 from telethon import TelegramClient, events
-from telethon.tl.functions.messages import SendMediaRequest
-from telethon.tl.types import InputPeerChannel
-import re
 
-# Настройки
-api_id = 20382465
-api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"
-phone_number = "+380713626583"
+# Настройки для подключения
+api_id = 20382465  # Ваш API ID
+api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"  # Ваш API Hash
+phone_number = "+380713626583"  # Ваш номер телефона
 
-# Каналы источники и целевые каналы (убраны символы @, будем работать с идентификаторами)
-channel_mapping = {
-    'https://t.me/+QUo4lv3MKq04Yjk6': 'Piterburg24na7',
-    'chp_donetska': 'ShestDonetsk',
-    'moscowach': 'MosNevSlp',
-    'mash_siberia': 'ShestNovosib',
-    'e1_news': 'ShestEKB',
-    'kazancity': 'ShestKazan',
-    'incidentkld': 'ShestKaliningrad',
-    'etorostov': 'ShestRostov',
-    'moynizhny': 'ShestNN',
-    'expltgk': 'ShestDonetsk',  # Все каналы получают посты от @expltgk
-    'naebnet': 'NoTrustNet'
-}
+# Идентификаторы каналов
+source_channel = 'expltgk'  # Канал-источник
+target_channel = 'ShestDonetsk'  # Целевой канал
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Создание клиента
 client = TelegramClient(phone_number, api_id, api_hash)
 
-async def send_message(client, target_channel, text, media=None):
-    """Отправка сообщения в канал с медиа."""
-    try:
-        if media:
-            # Отправка медиа файлов, отправляем сразу все медиа в одном сообщении
-            logger.info(f"Отправка сообщения с медиа в канал {target_channel}")
-            await client.send_message(target_channel, text=text, media=media)
-        else:
-            # Отправка только текста
-            logger.info(f"Отправка сообщения в канал {target_channel}")
-            await client.send_message(target_channel, text=text)
-    except Exception as e:
-        logger.error(f"Ошибка при отправке сообщения в канал {target_channel}: {e}")
-
-async def handle_message(event, source_channel):
-    """Обрабатывает входящие сообщения и пересылает их в целевые каналы."""
+@client.on(events.NewMessage(from_channels=[source_channel]))
+async def forward_message(event):
+    """Функция для пересылки сообщения."""
     try:
         message = event.message
-        logger.info(f"Получено сообщение от канала {source_channel}.")
-
-        # Пересылка в целевой канал
-        target_channel = channel_mapping.get(source_channel)
-        if target_channel:
-            # Получаем сущность целевого канала по его имени
-            target_channel_entity = await client.get_entity(target_channel)
-            if message.media:
-                # Отправка медиа в одном сообщении
-                await send_message(client, target_channel_entity, message.text, media=message.media)
-            else:
-                # Отправка только текста
-                await send_message(client, target_channel_entity, message.text)
-        else:
-            logger.warning(f"Не найден целевой канал для источника {source_channel}.")
+        # Пересылаем сообщение в целевой канал
+        await client.send_message(target_channel, message)
+        logger.info(f"Сообщение переслано из {source_channel} в {target_channel}")
     except Exception as e:
-        logger.error(f"Ошибка при обработке сообщения от канала {source_channel}: {e}")
-
-@client.on(events.NewMessage())
-async def forward_message(event):
-    """Обрабатывает новые сообщения от указанных каналов источников."""
-    try:
-        source_channel = event.chat_id  # Используем chat_id для получения канала
-        logger.info(f"Новое сообщение от канала {source_channel}")
-
-        # Проверка, что сообщение пришло от одного из источников
-        for source, target in channel_mapping.items():
-            if source_channel == await client.get_entity(source):
-                await handle_message(event, source)
-                return
-
-        logger.info(f"Сообщение не из одного из отслеживаемых каналов: {source_channel}")
-    except Exception as e:
-        logger.error(f"Ошибка при обработке нового сообщения: {e}")
+        logger.error(f"Ошибка при пересылке сообщения: {e}")
 
 async def main():
-    """Главная функция для запуска бота."""
+    """Основная функция для запуска бота."""
     try:
         logger.info("Бот запущен")
         await client.start()
