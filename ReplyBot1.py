@@ -51,7 +51,8 @@ async def send_message_with_media(message, media_files):
 
         # Отправляем все медиа в целевой канал в одном сообщении
         if media_files:
-            await client.send_file(target_channel, media_files, caption=message.text, force_document=False)
+            # Отправляем все медиафайлы в одном сообщении
+            await client.send_file(target_channel, files=media_files, caption=message.text, force_document=False)
             logging.info(f"Сообщение отправлено в канал {target_channel}")
 
         # Пауза для уверенности, что сообщения отправлены
