@@ -9,19 +9,19 @@ api_id = 20382465
 api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"
 phone_number = "+380713626583"
 
-# Каналы источники и целевые каналы
+# Каналы источники и целевые каналы (убраны символы @, будем работать с идентификаторами)
 channel_mapping = {
-    'https://t.me/+QUo4lv3MKq04Yjk6': '@Piterburg24na7',
-    '@chp_donetska': '@ShestDonetsk',
-    '@moscowach': '@MosNevSlp',
-    '@mash_siberia': '@ShestNovosib',
-    '@e1_news': '@ShestEKB',
-    '@kazancity': '@ShestKazan',
-    '@incidentkld': '@ShestKaliningrad',
-    '@etorostov': '@ShestRostov',
-    '@moynizhny': '@ShestNN',
-    '@expltgk': '@ShestDonetsk',  # Все каналы получают посты от @expltgk
-    '@naebnet': '@NoTrustNet'
+    'https://t.me/+QUo4lv3MKq04Yjk6': 'Piterburg24na7',
+    'chp_donetska': 'ShestDonetsk',
+    'moscowach': 'MosNevSlp',
+    'mash_siberia': 'ShestNovosib',
+    'e1_news': 'ShestEKB',
+    'kazancity': 'ShestKazan',
+    'incidentkld': 'ShestKaliningrad',
+    'etorostov': 'ShestRostov',
+    'moynizhny': 'ShestNN',
+    'expltgk': 'ShestDonetsk',  # Все каналы получают посты от @expltgk
+    'naebnet': 'NoTrustNet'
 }
 
 # Настройка логирования
@@ -53,13 +53,14 @@ async def handle_message(event, source_channel):
         # Пересылка в целевой канал
         target_channel = channel_mapping.get(source_channel)
         if target_channel:
-            # Пересылаем в целевой канал
+            # Получаем сущность целевого канала по его имени
+            target_channel_entity = await client.get_entity(target_channel)
             if message.media:
                 # Отправка медиа в одном сообщении
-                await send_message(client, target_channel, message.text, media=message.media)
+                await send_message(client, target_channel_entity, message.text, media=message.media)
             else:
                 # Отправка только текста
-                await send_message(client, target_channel, message.text)
+                await send_message(client, target_channel_entity, message.text)
         else:
             logger.warning(f"Не найден целевой канал для источника {source_channel}.")
     except Exception as e:
@@ -73,10 +74,12 @@ async def forward_message(event):
         logger.info(f"Новое сообщение от канала {source_channel}")
 
         # Проверка, что сообщение пришло от одного из источников
-        if str(source_channel) in channel_mapping.keys():
-            await handle_message(event, source_channel)
-        else:
-            logger.info(f"Сообщение не из одного из отслеживаемых каналов: {source_channel}")
+        for source, target in channel_mapping.items():
+            if source_channel == await client.get_entity(source):
+                await handle_message(event, source)
+                return
+
+        logger.info(f"Сообщение не из одного из отслеживаемых каналов: {source_channel}")
     except Exception as e:
         logger.error(f"Ошибка при обработке нового сообщения: {e}")
 
