@@ -17,13 +17,12 @@ logger = logging.getLogger(__name__)
 # Создание клиента
 client = TelegramClient(phone_number, api_id, api_hash)
 
-@client.on(events.NewMessage(from_channels=[source_channel]))
+@client.on(events.NewMessage(chats=source_channel))
 async def forward_message(event):
-    """Функция для пересылки сообщения."""
+    """Функция для пересылки сообщения без изменений."""
     try:
-        message = event.message
-        # Пересылаем сообщение в целевой канал
-        await client.send_message(target_channel, message)
+        # Пересылаем сообщение без изменений
+        await client.forward_messages(target_channel, event.message)
         logger.info(f"Сообщение переслано из {source_channel} в {target_channel}")
     except Exception as e:
         logger.error(f"Ошибка при пересылке сообщения: {e}")
