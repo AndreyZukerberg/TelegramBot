@@ -35,7 +35,7 @@ async def forward_message(event):
                 elif event.message.document:
                     media_files.append(InputMediaDocument(event.message.document))
 
-                # Если в сообщении несколько медиафайлов, добавляем все медиафайлы
+                # Если в сообщении несколько медиафайлов, добавляем все медиафайлы в список
                 if len(media_files) > 1:
                     await client.send_media(target_channel, media_files)
                 elif len(media_files) == 1:
