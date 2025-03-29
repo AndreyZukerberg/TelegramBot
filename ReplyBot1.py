@@ -53,7 +53,7 @@ async def send_message_with_media(message):
 
 
 # Обработчик новых сообщений
-@client.on(events.NewMessage(from_channels=[source_channel]))
+@client.on(events.NewMessage(chats=source_channel))
 async def handler(event):
     message = event.message
     logging.info(f"Получено сообщение от {source_channel}: {message.id}")
