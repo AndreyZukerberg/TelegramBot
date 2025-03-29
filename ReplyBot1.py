@@ -51,15 +51,23 @@ async def send_message_with_media(message, media_files):
         # Пауза для того, чтобы файлы успели загрузиться
         await asyncio.sleep(2)
 
-        # Отправляем все медиа в целевой канал в одном сообщении
+        # Логируем перед отправкой
+        logging.info(f"Готовим {len(media_files)} медиафайлов для отправки в канал {target_channel}.")
+        logging.debug(f"Список файлов для отправки: {media_files}")
+
+        # Проверка на то, что media_files не пустой
         if media_files:
-            # Проверьте, что media_files не пустой и является списком строк с путями
             if isinstance(media_files, list) and len(media_files) > 0:
-                logging.info(f"Отправка {len(media_files)} медиафайлов в канал {target_channel}.")
-                await client.send_file(target_channel, files=media_files, caption=message.text, force_document=False)
-                logging.info(f"Сообщение отправлено в канал {target_channel}.")
+                try:
+                    logging.info(f"Отправка {len(media_files)} медиафайлов в канал {target_channel}.")
+                    await client.send_file(target_channel, files=media_files, caption=message.text, force_document=False)
+                    logging.info(f"Сообщение отправлено в канал {target_channel}.")
+                except Exception as e:
+                    logging.error(f"Ошибка при пересылке файлов: {str(e)}")
             else:
                 logging.error("Ошибка: media_files не содержит файлов или не является списком.")
+        else:
+            logging.warning("media_files пустой список.")
 
         # Пауза для уверенности, что сообщения отправлены
         await asyncio.sleep(2)
