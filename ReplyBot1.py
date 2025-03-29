@@ -1,5 +1,5 @@
 from telethon import TelegramClient, events
-from telethon.tl.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
+from telethon.tl.types import InputMediaPhoto, InputMediaDocument
 
 # Укажите свои API_ID, API_HASH и номер телефона
 API_ID = "20382465"
@@ -22,23 +22,25 @@ async def forward_message(event):
     # Ищем целевой канал для этого источника
     for target_channel, source_channels in CHANNEL_MAPPING.items():
         if source_channel in source_channels:
-            # Если в сообщении есть несколько медиафайлов, отправляем их все
+            # Если в сообщении есть медиафайлы, собираем их
             media_files = []
             if event.message.media:
-                # Проверяем, если в сообщении несколько медиафайлов
-                if hasattr(event.message, 'media') and event.message.media:
-                    # Если это несколько фото/видео
-                    if isinstance(event.message.media, InputMediaPhoto):
-                        media_files.append(InputMediaPhoto(event.message.media))
-                    elif isinstance(event.message.media, InputMediaVideo):
-                        media_files.append(InputMediaVideo(event.message.media))
-                    elif isinstance(event.message.media, InputMediaDocument):
-                        media_files.append(InputMediaDocument(event.message.media))
+                # Если есть фото
+                if event.message.photo:
+                    media_files.append(InputMediaPhoto(event.message.photo))
+                # Если есть документ
+                elif event.message.document:
+                    media_files.append(InputMediaDocument(event.message.document))
+                # Если есть видео
+                elif event.message.video:
+                    media_files.append(InputMediaDocument(event.message.video))
 
+                # Отправляем медиа в одном сообщении, если несколько медиафайлов
                 if len(media_files) > 1:
                     await client.send_media(target_channel, media_files)
                 else:
                     await client.send_message(target_channel, event.message)
+
             else:
                 # Если медиа нет, пересылаем сообщение как текст
                 await client.send_message(target_channel, event.message)
