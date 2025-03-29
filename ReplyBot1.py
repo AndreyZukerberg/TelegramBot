@@ -1,39 +1,61 @@
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, Button import logging
 
-# Укажите свои API_ID, API_HASH и номер телефона
-API_ID = "20382465"
-API_HASH = "a83e9c7539fd0f8294b7b3b02796c90a"
-PHONE_NUMBER = "+380713626583"
+Логирование
 
-# Словарь, где ключи - целевые каналы, а значения - списки каналов источников
-CHANNEL_MAPPING = {
-    "ShestDonetsk": ["chp_donetska", "itsdonetsk", "expltgk"],
-}
+logging.basicConfig(level=logging.INFO) logger = logging.getLogger("TelegramForwarder")
 
-# Создаем клиент Telethon
-client = TelegramClient("forward_bot", API_ID, API_HASH)
+Настройки
 
+API_ID = "YOUR_API_ID" API_HASH = "YOUR_API_HASH" BOT_TOKEN = "YOUR_BOT_TOKEN"
 
-@client.on(events.NewMessage(chats=[channel for channels in CHANNEL_MAPPING.values() for channel in channels]))
-async def forward_message(event):
-    source_channel = event.chat.username  # Получаем юзернейм канала источника
+ADMIN_ID = "NoTrustNetAdmin"
 
-    # Ищем целевой канал для этого источника
-    for target_channel, source_channels in CHANNEL_MAPPING.items():
-        if source_channel in source_channels:
-            # Если в сообщении есть медиафайлы, пересылаем их
-            if event.message.media:
-                # Используем send_media для отправки медиа
-                await client.send_media(target_channel, event.message.media)
-            else:
-                # Если медиа нет, пересылаем сообщение как текст
-                await client.send_message(target_channel, event.message.text)
+Каналы источники и назначения
 
-            print(f"Переслано сообщение из {source_channel} в {target_channel}")
-            break  # После нахождения соответствующего канала источника выходим из цикла
+CHANNELS = { "chp_donetska": "ShestDonetsk", "moscowach": "MosNevSlp", "mash_siberia": "ShestNovosib", "e1_news": "ShestEKB", "kazancity": "ShestKazan", "incidentkld": "ShestKaliningrad", "etorostov": "ShestRostov", "moynizhny": "ShestNN", "naebnet": "NoTrustNet", "expltgk": [ "ShestDonetsk", "MosNevSlp", "ShestNovosib", "ShestEKB", "ShestKazan", "ShestKaliningrad", "ShestRostov", "ShestNN", "NoTrustNet" ], "https://t.me/+QUo4lv3MKq04Yjk6": "Piterburg24na7" }
 
+Ключевые слова для фильтрации рекламы
 
-# Запускаем бота
-print("Бот запущен...")
-client.start(phone=PHONE_NUMBER)
-client.run_until_disconnected()
+AD_KEYWORDS = [ "реклама", "маркетинг", "брендинг", "SMM", "SEO", "лендинги", "инфлюенсеры", "ретаргетинг", "рекламные кампании", "контекстная реклама", "социальные сети" ]
+
+Создание бота
+
+client = TelegramClient("bot", API_ID, API_HASH).start(bot_token=BOT_TOKEN)
+
+Обработчик сообщений
+
+@client.on(events.NewMessage(chats=list(CHANNELS.keys()))) async def forward_message(event): source_chat = event.chat_id target_chats = CHANNELS.get(event.chat.username, []) if not isinstance(target_chats, list): target_chats = [target_chats]
+
+# Проверка на рекламу
+if any(keyword in event.raw_text.lower() for keyword in AD_KEYWORDS):
+    await client.send_message(ADMIN_ID, "🚨 Найдена реклама! Что делать?", buttons=[
+        [Button.inline("Отправить", data=f"approve:{event.id}"), Button.inline("Отклонить", data=f"reject:{event.id}")]
+    ])
+    return
+
+# Пересылка в каналы назначения
+for chat in target_chats:
+    try:
+        await client.send_message(chat, event.message)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке сообщения в {chat}: {e}")
+
+Обработчик кнопок модерации
+
+@client.on(events.CallbackQuery()) async def callback_handler(event): data = event.data.decode("utf-8") action, msg_id = data.split(":") message = await event.get_message()
+
+if action == "approve":
+    for chat in CHANNELS.values():
+        if isinstance(chat, list):
+            for sub_chat in chat:
+                await client.send_message(sub_chat, message)
+        else:
+            await client.send_message(chat, message)
+    await event.edit("✅ Сообщение отправлено!")
+elif action == "reject":
+    await event.edit("🚫 Сообщение отклонено!")
+
+Запуск бота
+
+logger.info("Бот запущен") client.run_until_disconnected()
+
