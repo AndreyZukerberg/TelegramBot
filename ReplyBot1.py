@@ -55,11 +55,14 @@ async def handle_message(event, source_channel):
             # Отправка только текста
             await send_message(client, target_channel, message.text)
 
-@client.on(events.NewMessage(from_channels=list(channel_mapping.keys())))
+@client.on(events.NewMessage())
 async def forward_message(event):
     """Обрабатывает новые сообщения от указанных каналов источников."""
     source_channel = event.chat_id  # Используем chat_id для получения канала
-    await handle_message(event, source_channel)
+
+    # Проверка, что сообщение пришло от одного из источников
+    if str(source_channel) in channel_mapping.keys():
+        await handle_message(event, source_channel)
 
 async def main():
     """Главная функция для запуска бота."""
