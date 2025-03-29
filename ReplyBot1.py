@@ -3,14 +3,14 @@ import os
 from telethon import TelegramClient, events
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
-# Настройки
+# Настройки API
 api_id = 20382465
 api_hash = "a83e9c7539fd0f8294b7b3b02796c90a"
 phone_number = "+380713626583"
 
 # Каналы
-source_channel = 'expltgk'
-target_channel = 'ShestDonetsk'
+source_channel = "expltgk"
+target_channel = "ShestDonetsk"
 
 # Логирование
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Создание клиента
 client = TelegramClient(phone_number, api_id, api_hash)
+
 
 @client.on(events.NewMessage(chats=source_channel))
 async def forward_message(event):
@@ -29,19 +30,24 @@ async def forward_message(event):
         if not os.path.exists(temp_dir):
             os.makedirs(temp_dir)
 
-        # Скачивание всех медиафайлов
-        if event.message.media:
-            if isinstance(event.message.media, MessageMediaPhoto):  # Фото
+        # Скачивание всех медиафайлов из поста
+        if event.message.grouped_id:  # Проверяем, что сообщение является частью альбома
+            messages = await event.client.get_messages(source_channel, max_id=event.message.id + 10, min_id=event.message.id - 10)
+            album_messages = [msg for msg in messages if msg.grouped_id == event.message.grouped_id]
+
+            for msg in album_messages:
+                if msg.media:
+                    file_path = await msg.download_media(file=temp_dir)
+                    if file_path:
+                        media_files.append(file_path)
+
+        else:  # Одиночное сообщение
+            if event.message.media:
                 file_path = await event.message.download_media(file=temp_dir)
                 if file_path:
                     media_files.append(file_path)
 
-            elif isinstance(event.message.media, MessageMediaDocument):  # Документы (видео, GIF, стикеры и т. д.)
-                file_path = await event.message.download_media(file=temp_dir)
-                if file_path:
-                    media_files.append(file_path)
-
-        # Отправка всех медиафайлов одним постом
+        # Отправка всех медиафайлов в одном посте
         if media_files:
             await client.send_file(target_channel, media_files, caption=event.message.text or "", album=True)
 
@@ -57,6 +63,7 @@ async def forward_message(event):
     except Exception as e:
         logger.error(f"Ошибка при пересылке сообщения: {e}")
 
+
 async def main():
     """Запуск бота."""
     try:
@@ -65,6 +72,7 @@ async def main():
         await client.run_until_disconnected()
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
+
 
 # Запуск клиента
 client.loop.run_until_complete(main())
