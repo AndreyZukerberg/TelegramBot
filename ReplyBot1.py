@@ -31,7 +31,7 @@ async def forward_message(event):
         # Проверяем, является ли сообщение частью альбома
         if event.message.grouped_id:
             grouped_id = event.message.grouped_id
-            messages = await event.client.get_messages(source_channel, limit=10)
+            messages = await event.client.get_messages(source_channel, limit=20)
             album_messages = [msg for msg in messages if msg.grouped_id == grouped_id]
 
             for msg in album_messages:
@@ -46,17 +46,17 @@ async def forward_message(event):
                 if file_path:
                     media_files.append(file_path)
 
-        # Отправка всех медиафайлов в одном посте
+        # Проверяем, есть ли медиафайлы перед отправкой
         if media_files:
             await client.send_file(target_channel, media=media_files, caption=event.message.text or "")
-
+            
             # Удаление файлов после отправки
             for file in media_files:
                 os.remove(file)
 
             logger.info(f"Сообщение с медиа переслано из {source_channel} в {target_channel}")
         else:
-            await client.send_message(target_channel, event.message.text)
+            await client.send_message(target_channel, event.message.text or "")
             logger.info(f"Текстовое сообщение переслано из {source_channel} в {target_channel}")
 
     except Exception as e:
