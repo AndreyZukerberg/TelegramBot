@@ -1,5 +1,4 @@
 from telethon import TelegramClient, events
-from telethon.tl.types import InputMediaPhoto, InputMediaVideo, InputMediaDocument
 
 # Укажите свои API_ID, API_HASH и номер телефона
 API_ID = "20382465"
@@ -22,25 +21,10 @@ async def forward_message(event):
     # Ищем целевой канал для этого источника
     for target_channel, source_channels in CHANNEL_MAPPING.items():
         if source_channel in source_channels:
-            # Если в сообщении есть медиафайлы, собираем их
-            media_files = []
+            # Если в сообщении есть медиафайлы, пересылаем их
             if event.message.media:
-                # Проверяем и добавляем фото
-                if event.message.photo:
-                    media_files.append(InputMediaPhoto(event.message.photo))
-                # Проверяем и добавляем видео
-                elif event.message.video:
-                    media_files.append(InputMediaVideo(event.message.video))
-                # Проверяем и добавляем документы
-                elif event.message.document:
-                    media_files.append(InputMediaDocument(event.message.document))
-
-                # Если в сообщении несколько медиафайлов, добавляем все медиафайлы в список
-                if len(media_files) > 1:
-                    await client.send_media(target_channel, media_files)
-                elif len(media_files) == 1:
-                    await client.send_media(target_channel, media_files[0])  # Отправка одиночного медиа
-
+                # Отправляем все медиафайлы из сообщения, как одно сообщение с несколькими вложениями
+                await client.send_media(target_channel, event.message.media)
             else:
                 # Если медиа нет, пересылаем сообщение как текст
                 await client.send_message(target_channel, event.message)
