@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 from telethon import TelegramClient, events
-from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
+from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -19,26 +19,38 @@ client = TelegramClient('shest_bot', api_id, api_hash)
 source_channel = 'https://t.me/expltgk'
 target_channel = 'https://t.me/ShestDonetsk'
 
-# Функция для отправки сообщений
+# Функция для отправки сообщений с несколькими медиа
 async def send_message_with_media(message):
     try:
         media_files = []
 
-        # Если сообщение содержит фотографии
+        # Обрабатываем все медиа, которые есть в сообщении
         if isinstance(message.media, MessageMediaPhoto):
-            # Скачиваем фото
-            file_path = await client.download_media(message.media, "./downloads/")
-            logging.info(f"Скачан файл: {file_path}")
-            media_files.append(file_path)
-        
-        # Если сообщение содержит документ (например, PDF, архив)
-        elif isinstance(message.media, MessageMediaDocument):
-            # Скачиваем документ
+            # Если это фото, скачиваем
             file_path = await client.download_media(message.media, "./downloads/")
             logging.info(f"Скачан файл: {file_path}")
             media_files.append(file_path)
 
-        # Отправляем файлы в целевой канал
+        elif isinstance(message.media, MessageMediaDocument):
+            # Если это документ, скачиваем
+            file_path = await client.download_media(message.media, "./downloads/")
+            logging.info(f"Скачан файл: {file_path}")
+            media_files.append(file_path)
+
+        elif isinstance(message.media, MessageMediaWebPage):
+            # Если это ссылка с медиа, скачиваем её
+            file_path = await client.download_media(message.media, "./downloads/")
+            logging.info(f"Скачан файл: {file_path}")
+            media_files.append(file_path)
+
+        # Проверяем, есть ли другие медиа в сообщении (например, несколько фото или видео)
+        if message.media and hasattr(message.media, 'photos'):
+            for photo in message.media.photos:
+                file_path = await client.download_media(photo, "./downloads/")
+                logging.info(f"Скачано фото: {file_path}")
+                media_files.append(file_path)
+
+        # Отправляем все медиа в целевой канал
         if media_files:
             await client.send_file(target_channel, media_files, caption=message.text)
             logging.info(f"Сообщение отправлено в канал {target_channel}")
