@@ -4,7 +4,6 @@ import logging
 import asyncio
 from telethon import TelegramClient, events
 from telethon.tl.types import MessageMediaPhoto
-from telethon.tl.functions.messages import GetMessages
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -18,20 +17,20 @@ phone_number = "+380713626583"  # ваш номер телефона
 client = TelegramClient('shest_bot', api_id, api_hash)
 
 # Канал источника и канал назначения
-source_channel = 'https://t.me/expltgk'  # Источник
-target_channel = 'https://t.me/ShestDonetsk'  # Цель
+source_channel = 'expltgk'  # Источник (название канала без https://t.me/)
+target_channel = 'ShestDonetsk'  # Цель (название канала без https://t.me/)
 
 # Функция для скачивания медиафайлов
 async def download_media(message):
     media_files = []
     try:
+        # Проверка на медиафайл
         if isinstance(message.media, MessageMediaPhoto):
-            # Если это фото, скачиваем
             file_path = await client.download_media(message.media, "./downloads/")
             logging.info(f"Скачан файл: {file_path}")
             media_files.append(file_path)
 
-        # Если в сообщении несколько медиа (например, фото)
+        # Для случая, если несколько медиафайлов
         if message.media and hasattr(message.media, 'photos'):
             for photo in message.media.photos:
                 file_path = await client.download_media(photo, "./downloads/")
