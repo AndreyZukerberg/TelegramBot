@@ -26,14 +26,12 @@ async def download_media(message):
     try:
         # Проверка на медиафайл
         if isinstance(message.media, MessageMediaPhoto):
-            logging.info("Обнаружено одно фото в сообщении.")
             file_path = await client.download_media(message.media, "./downloads/")
             logging.info(f"Скачан файл: {file_path}")
             media_files.append(file_path)
 
         # Для случая, если несколько медиафайлов
         if message.media and hasattr(message.media, 'photos'):
-            logging.info(f"Обнаружено несколько фото в сообщении.")
             for photo in message.media.photos:
                 file_path = await client.download_media(photo, "./downloads/")
                 logging.info(f"Скачано фото: {file_path}")
@@ -55,9 +53,13 @@ async def send_message_with_media(message, media_files):
 
         # Отправляем все медиа в целевой канал в одном сообщении
         if media_files:
-            logging.info(f"Отправка {len(media_files)} медиафайлов в канал {target_channel}.")
-            await client.send_file(target_channel, files=media_files, caption=message.text, force_document=False)
-            logging.info(f"Сообщение отправлено в канал {target_channel}.")
+            # Проверьте, что media_files не пустой и является списком строк с путями
+            if isinstance(media_files, list) and len(media_files) > 0:
+                logging.info(f"Отправка {len(media_files)} медиафайлов в канал {target_channel}.")
+                await client.send_file(target_channel, files=media_files, caption=message.text, force_document=False)
+                logging.info(f"Сообщение отправлено в канал {target_channel}.")
+            else:
+                logging.error("Ошибка: media_files не содержит файлов или не является списком.")
 
         # Пауза для уверенности, что сообщения отправлены
         await asyncio.sleep(2)
@@ -88,11 +90,6 @@ async def handler(event):
 
     # Скачиваем все медиафайлы из сообщения
     media_files = await download_media(message)
-
-    if media_files:
-        logging.info(f"Скачано {len(media_files)} медиафайлов. Пересылаем сообщение в {target_channel}.")
-    else:
-        logging.warning("Медиафайлы не были найдены в сообщении.")
 
     # Пауза перед отправкой сообщения
     await asyncio.sleep(1)
