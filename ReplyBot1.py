@@ -1,5 +1,6 @@
 import logging
 from telethon import TelegramClient, events
+from telethon.tl.types import MessageMediaPhoto, MessageMediaVideo
 
 # Настройки для подключения
 api_id = 20382465  # Ваш API ID
@@ -19,10 +20,25 @@ client = TelegramClient(phone_number, api_id, api_hash)
 
 @client.on(events.NewMessage(chats=source_channel))
 async def forward_message(event):
-    """Функция для пересылки сообщения без изменений."""
+    """Функция для пересылки сообщения без изменений (с несколькими медиафайлами)."""
     try:
-        # Пересылаем сообщение без изменений
-        await client.forward_messages(target_channel, event.message)
+        # Если в сообщении есть медиафайлы, соберем их
+        media = []
+        if event.message.media:
+            # Проверяем тип медиа (фото, видео и т. д.)
+            if isinstance(event.message.media, MessageMediaPhoto):
+                media.append(event.message.media)
+            elif isinstance(event.message.media, MessageMediaVideo):
+                media.append(event.message.media)
+            else:
+                media.append(event.message.media)  # Добавляем все остальные медиафайлы
+
+        # Пересылаем сообщение с медиа (все медиа в одном сообщении)
+        if media:
+            await client.send_media(target_channel, media, caption=event.message.text)
+        else:
+            await client.send_message(target_channel, event.message.text)
+
         logger.info(f"Сообщение переслано из {source_channel} в {target_channel}")
     except Exception as e:
         logger.error(f"Ошибка при пересылке сообщения: {e}")
