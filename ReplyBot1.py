@@ -1,3 +1,9 @@
+import asyncio
+import openai
+from telethon import TelegramClient
+from aiogram import Bot, Dispatcher
+import requests
+
 # Telegram API credentials
 API_ID = "your_api_id"
 API_HASH = "your_api_hash"
