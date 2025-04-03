@@ -1,55 +1,84 @@
-import asyncio
-import aiohttp
-from bs4 import BeautifulSoup
-from aiogram import Bot, Dispatcher
-from aiogram.types import InputMediaPhoto, InputMedia
+import logging
+import os
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ParseMode
+from aiogram.utils import executor
+import google.generativeai as genai
+from dotenv import load_dotenv
 
-API_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
-MODERATOR_ID = "@Brofflovski"
+# Загружаем ключ API из .env
+load_dotenv()
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+# Настройка Google Gemini
+genai.configure(api_key=GOOGLE_API_KEY)
+
+# Токен бота
+API_TOKEN = "your_telegram_bot_token_here"
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher()
+dp = Dispatcher(bot)
 
-news_sources = {
-    "rbc": "https://rssexport.rbc.ru/rbcnews/news/tech/",
-    "ria": "https://ria.ru/export/rss2/archive/index.xml",
-    "kodru": "https://kod.ru/feed/"
-}
+# Админ для управления ботом
+ADMIN_ID = 123456789  # Замени на свой ID
 
-async def fetch_news(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as response:
-            if response.status != 200:
-                return []
-            content = await response.text()
-    
-    soup = BeautifulSoup(content, "xml")
-    items = soup.find_all("item")[:5]
-    news_list = []
-    
-    for item in items:
-        title = item.title.text
-        link = item.link.text
-        image_url = item.enclosure["url"] if item.find("enclosure") else None
-        news_list.append({"title": title, "link": link, "image": image_url})
-    
-    return news_list
+# Устанавливаем уровень логирования
+logging.basicConfig(level=logging.INFO)
 
-async def send_news():
-    for source, url in news_sources.items():
-        news_list = await fetch_news(url)
-        for news in news_list:
-            text = f"{news['title']}\n\n🔗 [Читать полностью]({news['link']})"
-            if news["image"]:
-                media = [InputMediaPhoto(news["image"], caption=text, parse_mode="Markdown")]
-                await bot.send_media_group(chat_id=MODERATOR_ID, media=media)
-            else:
-                await bot.send_message(chat_id=MODERATOR_ID, text=text, parse_mode="Markdown")
+async def improve_text_with_gemini(text: str) -> str:
+    try:
+        response = genai.generate_text(prompt=text)
+        return response.text.strip()
+    except Exception as e:
+        logging.error(f"Ошибка при обращении к Google Gemini: {e}")
+        return text
 
-async def main():
-    while True:
-        await send_news()
-        await asyncio.sleep(10800)  # Раз в 3 часа
+@dp.message_handler(commands=['start'])
+async def cmd_start(message: types.Message):
+    if message.from_user.id == ADMIN_ID:
+        await message.answer("Бот активирован. Перешли пост для обработки.")
+    else:
+        await message.answer("Извините, только для администратора.")
 
-if __name__ == "__main__":
-    asyncio.run(main())
+@dp.message_handler(content_types=[types.ContentType.TEXT, types.ContentType.PHOTO, types.ContentType.VIDEO])
+async def handle_post(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    # Обработка текста
+    original_text = message.text or ""
+    improved_text = await improve_text_with_gemini(original_text)
+
+    # Создаем кнопки
+    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    button_forward = types.KeyboardButton("Переслать")
+    button_skip = types.KeyboardButton("Не пересылать")
+    keyboard.add(button_forward, button_skip)
+
+    # Ответ на сообщение
+    if message.content_type == 'text':
+        await message.answer(f"Улучшенный текст:\n\n{improved_text}", reply_markup=keyboard)
+    else:
+        # Если есть медиа
+        media = message.photo[-1] if message.photo else message.video
+        if media:
+            await message.answer_media_group(media=[media])
+        await message.answer(f"Улучшенный текст:\n\n{improved_text}", reply_markup=keyboard)
+
+@dp.message_handler(lambda message: message.text == "Переслать")
+async def forward_post(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    # Отправляем улучшенный пост в канал
+    await bot.send_message(chat_id="@NoTrustNet", text=message.text)
+    await message.answer("Пост отправлен в канал!")
+
+@dp.message_handler(lambda message: message.text == "Не переслать")
+async def skip_post(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    await message.answer("Пост не был отправлен.")
+
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
