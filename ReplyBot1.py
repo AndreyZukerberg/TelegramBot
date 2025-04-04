@@ -1,84 +1,158 @@
 import logging
-import os
-from aiogram import Bot, Dispatcher, types
-from aiogram.types import ParseMode
-from aiogram.utils import executor
+import asyncio
 import google.generativeai as genai
-from dotenv import load_dotenv
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message
+from aiogram.filters import Command
+import re
 
-# Загружаем ключ API из .env
-load_dotenv()
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+# 🔐 Ваши ключи
+BOT_TOKEN = "7820665212:AAE0E7QmLEc7VkNboc-h27YDMiWqWXl_kes"
+GOOGLE_API_KEY = "AIzaSyA8AQxfsbH0Un8ejnShzfQ0FnaQfDXlJMI"
+ADMIN_ID = 7324661214
+CHANNEL_ID = "@NoTrustNet"
 
-# Настройка Google Gemini
+# Настройка Google Gemini API
 genai.configure(api_key=GOOGLE_API_KEY)
 
-# Токен бота
-API_TOKEN = "your_telegram_bot_token_here"
-bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot)
+# Создаем бота и диспетчер
+bot = Bot(token=BOT_TOKEN)
+dp = Dispatcher()
 
-# Админ для управления ботом
-ADMIN_ID = 123456789  # Замени на свой ID
-
-# Устанавливаем уровень логирования
+# Настроим логирование
 logging.basicConfig(level=logging.INFO)
 
+MAX_CAPTION_LENGTH = 1024  # Максимальная длина подписи
+
+
+# Промт для генерации текста с помощью Google Gemini
+def generate_prompt(text: str) -> str:
+    return f"""
+    Ты — AI-редактор новостей. Твоя задача — переписать новость в лаконичном и информативном стиле, как в канале @naebnet.
+
+Требования:
+
+    Новость должна быть краткой.
+
+    Добавь выделения нужного текста.
+
+    Сохрани нейтральный и слегка ироничный тон, текст должен быть официальным.
+
+    Если новость техническая, объясни её простыми словами.
+
+    Убери лишнюю информацию и воду, оставь только суть.
+
+    Перепиши заголовок так, чтобы он привлекал внимание, заголовок нужно выделять болдом и ентером после заголовка.
+
+Пример входных данных:
+«Черный четверг для инвесторов: рынки рушатся, США вводят новые пошлины, капитализация американского рынка падает на $1,7 трлн. Apple переживает худший день за 5 лет: акции -8%, капитализация -$300 млрд. Бигтех в минусе: Nvidia -5%, Qualcomm -7%, Amazon -9%. Под ударом и российский рынок: индекс Мосбиржи ниже 2900, сильнее всего страдают Газпром, Роснефть и Сургутнефтегаз.»
+
+Пример желаемого результата:
+«Черный четверг для инвесторов: фондовые рынки по всему миру падают на фоне новых пошлин США. Капитализация американского рынка обвалилась (https://www.bloomberg.com/news/articles/2025-04-03/trump-tariffs-set-to-zap-nearly-2-trillion-from-us-stock-market) на $1,7 трлн сразу после открытия торгов.
+
+У Apple сегодня худший день за последние 5 лет. Акции компании в минусе на 8%, а капитализация — на $300 млрд. Падает весь бигтех: Nvidia (-5%), Qualcomm (-7%), Amazon (-9%).
+
+Затронуло и российский рынок. Индекс Мосбиржи упал ниже 2900 пунктов. Сильнее всего пострадали Газпром, Роснефть и Сургутнефтегаз.»
+
+Теперь обработай следующую новость:
+{text}
+    """
+
+
 async def improve_text_with_gemini(text: str) -> str:
+    """Обрабатывает текст с помощью Google Gemini и форматирует его."""
     try:
-        response = genai.generate_text(prompt=text)
-        return response.text.strip()
+        # Генерация текста с использованием промта
+        prompt = generate_prompt(text)
+
+        model = genai.GenerativeModel("models/gemini-1.5-pro-latest")  # Используем доступную модель
+        response = model.generate_content([prompt])  # Генерация текста
+        improved_text = response.text.strip() if hasattr(response, 'text') else text
+
+        # Убираем ссылки
+        improved_text = re.sub(r'http\S+', '', improved_text)  # Удаляем ссылки
+
+        return improved_text
     except Exception as e:
-        logging.error(f"Ошибка при обращении к Google Gemini: {e}")
-        return text
+        logging.error(f"Ошибка при работе с Google Gemini: {e}")
+        return text  # Возвращаем оригинальный текст в случае ошибки
 
-@dp.message_handler(commands=['start'])
-async def cmd_start(message: types.Message):
+
+@dp.message(Command("start"))
+async def cmd_start(message: Message):
+    """Стартовое сообщение"""
     if message.from_user.id == ADMIN_ID:
-        await message.answer("Бот активирован. Перешли пост для обработки.")
+        await message.answer("✅ Бот активирован. Перешли пост для обработки.")
     else:
-        await message.answer("Извините, только для администратора.")
+        await message.answer("⛔ Этот бот доступен только для администратора.")
 
-@dp.message_handler(content_types=[types.ContentType.TEXT, types.ContentType.PHOTO, types.ContentType.VIDEO])
-async def handle_post(message: types.Message):
+
+@dp.message(F.forward_from_chat | F.text | F.photo | F.video)
+async def handle_post(message: Message):
+    """Обрабатывает пересланный пост (с медиа или без)"""
     if message.from_user.id != ADMIN_ID:
         return
 
-    # Обработка текста
-    original_text = message.text or ""
+    # Получаем текст поста
+    original_text = message.caption or message.text or "Нет текста"
     improved_text = await improve_text_with_gemini(original_text)
 
-    # Создаем кнопки
-    keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    button_forward = types.KeyboardButton("Переслать")
-    button_skip = types.KeyboardButton("Не пересылать")
-    keyboard.add(button_forward, button_skip)
+    # Если текст слишком длинный, обрезаем до 1024 символов
+    if len(improved_text) > MAX_CAPTION_LENGTH:
+        improved_text = improved_text[:MAX_CAPTION_LENGTH - 3] + "..."  # Добавляем многоточие, чтобы не превысить лимит
 
-    # Ответ на сообщение
-    if message.content_type == 'text':
-        await message.answer(f"Улучшенный текст:\n\n{improved_text}", reply_markup=keyboard)
+    # Создаем клавиатуру с кнопками
+    buttons = [
+        [InlineKeyboardButton(text="✅ Переслать", callback_data="send_post")],
+        [InlineKeyboardButton(text="❌ Не пересылать", callback_data="cancel_post")]
+    ]
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    # Если в посте есть медиа
+    if message.photo:
+        await message.answer_photo(photo=message.photo[-1].file_id,
+                                   caption=improved_text, reply_markup=keyboard)
+    elif message.video:
+        await message.answer_video(video=message.video.file_id, caption=improved_text,
+                                   reply_markup=keyboard)
     else:
-        # Если есть медиа
-        media = message.photo[-1] if message.photo else message.video
-        if media:
-            await message.answer_media_group(media=[media])
-        await message.answer(f"Улучшенный текст:\n\n{improved_text}", reply_markup=keyboard)
+        await message.answer(improved_text, reply_markup=keyboard)
 
-@dp.message_handler(lambda message: message.text == "Переслать")
-async def forward_post(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
+
+@dp.callback_query(F.data == "send_post")
+async def send_post(callback: types.CallbackQuery):
+    """Пересылает пост в канал"""
+    if callback.from_user.id != ADMIN_ID:
         return
 
-    # Отправляем улучшенный пост в канал
-    await bot.send_message(chat_id="@NoTrustNet", text=message.text)
-    await message.answer("Пост отправлен в канал!")
-
-@dp.message_handler(lambda message: message.text == "Не переслать")
-async def skip_post(message: types.Message):
-    if message.from_user.id != ADMIN_ID:
+    # Проверяем, что текст не пустой
+    text_to_send = callback.message.text
+    if text_to_send is None or not text_to_send.strip():  # Проверка на None
+        await callback.message.edit_text("❌ Текст пустой. Пост не был отправлен.")
+        await callback.answer()
         return
 
-    await message.answer("Пост не был отправлен.")
+    # Пересылаем текст в канал
+    await bot.send_message(chat_id=CHANNEL_ID, text=text_to_send)
+    await callback.message.edit_text("✅ Пост отправлен в канал!")
+    await callback.answer()
 
-if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+
+@dp.callback_query(F.data == "cancel_post")
+async def cancel_post(callback: types.CallbackQuery):
+    """Отменяет отправку поста"""
+    if callback.from_user.id != ADMIN_ID:
+        return
+
+    await callback.message.edit_text("❌ Пост не был отправлен.")
+    await callback.answer()
+
+
+async def main():
+    """Запускает бота"""
+    logging.info("🤖 Бот запущен!")
+    await dp.start_polling(bot)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
